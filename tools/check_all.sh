@@ -13,5 +13,7 @@ echo "== prompts' factual claims still hold =="
 node tools/check_claims.mjs
 echo "== dataset still exhibits the properties the prompts claim =="
 node tools/check_dataset.mjs
+echo "== both engine sources (vendored + CDN) boot and query =="
+node tools/check_engine_source.mjs
 echo
 echo "All checks passed."
