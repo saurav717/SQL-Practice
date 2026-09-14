@@ -23,7 +23,8 @@ cp "$SRC/assets/js/engine.js"                       "$DEST/assets/js/"
 cp "$SRC/assets/js/curriculum.js"                   "$DEST/assets/js/"
 cp "$SRC/assets/data/"*.sql                         "$DEST/assets/data/"
 cp "$SRC/engine/duckdb/duckdb-browser.bundle.mjs"   "$DEST/engine/duckdb/"
-cp "$SRC/engine/duckdb/NOTICE.md"                   "$DEST/engine/duckdb/"
+# .txt, not .md: Jekyll processes Markdown, and this is a Jekyll site.
+cp "$SRC/engine/duckdb/NOTICE.md"                   "$DEST/engine/duckdb/NOTICE.txt"
 
 # Pin the deployed copy to the CDN so it never looks for files it does not ship.
 sed 's|<script type="module" src="assets/js/app.js">|<script type="module" data-engine-source="cdn" src="assets/js/app.js">|' \
