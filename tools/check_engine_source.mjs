@@ -28,7 +28,7 @@ const srv = http.createServer((q, r) => {
       // point "the CDN" at this server so the cdn code path is exercisable
       body = Buffer.from(String(d).replace(
         /const CDN_BASE = '[^']*';/,
-        `const CDN_BASE = '${ORIGIN}/vendor/duckdb/';`));
+        `const CDN_BASE = '${ORIGIN}/engine/duckdb/';`));
     }
     r.writeHead(200, { 'Content-Type': T[path.extname(f)] || 'application/octet-stream' });
     r.end(body);

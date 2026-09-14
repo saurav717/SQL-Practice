@@ -11,6 +11,12 @@
 //
 //  The linter below is what keeps you honest about the difference.
 //
+//  NOTE ON THE DIRECTORY NAME: the DuckDB files live in engine/, not vendor/.
+//  Jekyll's default exclude list contains "vendor", and the hosted copy of this
+//  site is served from a Jekyll site, so a directory called vendor/ risks being
+//  silently dropped at build time. Keeping one name for both means the local
+//  clone and the deployed copy resolve identical paths.
+//
 //  ENGINE SOURCE. The DuckDB wasm binary is ~36 MB on disk. Served from a CDN
 //  it arrives compressed at roughly 8 MB, which is what you want for a hosted
 //  copy; served from the vendored files it works with no network at all, which
@@ -25,7 +31,7 @@
 //  ship).
 // ===========================================================================
 
-const VENDOR_BASE = 'vendor/duckdb/';
+const LOCAL_BASE = 'engine/duckdb/';
 const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/dist/';
 
 /** 'vendor' | 'cdn' -- where the worker and wasm binary come from. */
@@ -56,15 +62,15 @@ const strip = (sql) => sql.trim().replace(/;+\s*$/, '');
 // --- boot -------------------------------------------------------------------
 export async function boot(onProgress = () => {}) {
   onProgress('Loading DuckDB engine');
-  duckdb = await import(`../../${VENDOR_BASE}duckdb-browser.bundle.mjs`);
+  duckdb = await import(`../../${LOCAL_BASE}duckdb-browser.bundle.mjs`);
 
   engineSource = resolveEngineSource();
   const base = engineSource === 'cdn'
     ? CDN_BASE
     // Absolute URL: the worker resolves the wasm path against ITS OWN location,
     // not the document's, so a relative path would look for
-    // vendor/duckdb/vendor/duckdb/duckdb-eh.wasm and 404.
-    : new URL(VENDOR_BASE, document.baseURI).href;
+    // engine/duckdb/engine/duckdb/duckdb-eh.wasm and 404.
+    : new URL(LOCAL_BASE, document.baseURI).href;
 
   const workerSrc = `${base}duckdb-browser-eh.worker.js`;
   const wasmUrl   = `${base}duckdb-eh.wasm`;

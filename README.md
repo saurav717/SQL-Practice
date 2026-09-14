@@ -27,7 +27,7 @@ nothing leaves your machine. Progress is stored in `localStorage`.
 ## Which SQL engine is this?
 
 **The practice engine is DuckDB** (compiled to WebAssembly, vendored in
-`vendor/duckdb/`). This deserves an explanation, because it is not one of your
+`engine/duckdb/`). This deserves an explanation, because it is not one of your
 target engines.
 
 Nothing can run Redshift, Athena or Snowflake in a browser — they are cloud
@@ -243,10 +243,10 @@ assets/data/seed.sql          generated, deterministic (2.2 MB)
 assets/data/compat.sql        Snowflake/Redshift function shims
 assets/data/compat-tz.sql     time-zone shims (loaded only when ICU is available)
 tools/                        generator + verification suites
-vendor/duckdb/                DuckDB-Wasm 1.33.1 (MIT), ~36 MB, ~8 MB over the wire
+engine/duckdb/                DuckDB-Wasm 1.33.1 (MIT), ~36 MB, ~8 MB over the wire
 ```
 
-`vendor/duckdb/NOTICE.md` records licensing.
+`engine/duckdb/NOTICE.md` records licensing.
 
 ## Engine source: vendored vs CDN
 
@@ -255,7 +255,7 @@ the source is chosen per environment:
 
 | Where | Source | Why |
 |---|---|---|
-| `localhost`, `127.0.0.1`, `file://` | `vendor/duckdb/` | works with no network at all |
+| `localhost`, `127.0.0.1`, `file://` | `engine/duckdb/` | works with no network at all |
 | any real host | jsDelivr | ~8 MB first load instead of ~36 MB |
 
 Override with `?engine=vendor` or `?engine=cdn`, or by putting
