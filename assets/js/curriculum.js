@@ -67,7 +67,7 @@ ORDER BY d.dept_name;`,
 
 Columns: \`department_id\`, \`dept_name\`.
 
-Write it as an anti-join. Then, in the sandbox, try the \`NOT IN\` version and see what happens — that is the next exercise.`,
+Write it as an anti-join. Then, in Explore mode, try the \`NOT IN\` version and see what happens — that is the next exercise.`,
   hints: [
     'Two idiomatic forms: LEFT JOIN ... WHERE right_key IS NULL, or NOT EXISTS (correlated subquery).',
     'NOT EXISTS is usually the one to reach for: it states the intent directly and it is NULL-safe.',
@@ -206,7 +206,7 @@ ORDER BY path;`,
   ref: 'Prep guide: "NOT IN with NULLs returning empty sets"',
   prompt: `Four employees are contractors with \`department_id IS NULL\`.
 
-Run this first in the sandbox and see that it returns **zero rows**:
+Run this first in Explore mode and see that it returns **zero rows**:
 
 \`\`\`sql
 SELECT department_id FROM departments

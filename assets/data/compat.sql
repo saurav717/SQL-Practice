@@ -28,7 +28,7 @@ CREATE OR REPLACE MACRO dateadd(part, n, d) AS
 -- DATEDIFF / date_diff are already native in DuckDB and count BOUNDARY
 -- CROSSINGS, same as Redshift, Snowflake and SQL Server. This is the trap in
 -- reference 3.3:  DATEDIFF('year', '2025-12-31', '2026-01-01') = 1
--- One day apart, one year boundary crossed. Verify it yourself in the sandbox.
+-- One day apart, one year boundary crossed. Verify it yourself in Explore mode.
 
 -- Time-zone macros live in compat-tz.sql, which is loaded ONLY when the ICU
 -- extension is available (it carries the IANA time-zone database). Without it

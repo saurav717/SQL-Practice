@@ -544,6 +544,250 @@ FROM (
 WHERE orders.order_id = m.order_id;
 `);
 
+// ===========================================================================
+//  EXPLORE-MODE TABLES (sections 17-20)
+//
+//  These feed Explore mode rather than any graded exercise. They are generated
+//  LAST, after every table above, so that the seeded PRNG stream consumed by
+//  sections 1-16 is bit-for-bit unchanged and no reference result set drifts.
+//  Add new tables here, at the end -- never in the middle.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 17. dim_country -- reference dimension, deliberately wider than the facts
+// ---------------------------------------------------------------------------
+const COUNTRIES = [
+  // country,           iso2, ccy,   region, continent,       is_eu
+  ['Germany',           'DE', 'EUR', 'EMEA', 'Europe',         1],
+  ['United States',     'US', 'USD', 'AMER', 'North America',  0],
+  ['India',             'IN', 'INR', 'APAC', 'Asia',           0],
+  ['United Kingdom',    'GB', 'GBP', 'EMEA', 'Europe',         0],
+  ['Canada',            'CA', 'CAD', 'AMER', 'North America',  0],
+  ['France',            'FR', 'EUR', 'EMEA', 'Europe',         1],
+  ['Japan',             'JP', 'JPY', 'APAC', 'Asia',           0],
+  ['Australia',         'AU', 'AUD', 'APAC', 'Oceania',        0],
+  ['Brazil',            'BR', 'BRL', 'AMER', 'South America',  0],
+  ['Spain',             'ES', 'EUR', 'EMEA', 'Europe',         1],
+  // No customers and no merchants in these five -- the anti-join has to find
+  // something, otherwise "markets we have not entered" is an empty question.
+  ['Mexico',            'MX', 'MXN', 'AMER', 'North America',  0],
+  ['Italy',             'IT', 'EUR', 'EMEA', 'Europe',         1],
+  ['Netherlands',       'NL', 'EUR', 'EMEA', 'Europe',         1],
+  ['Singapore',         'SG', 'SGD', 'APAC', 'Asia',           0],
+  ['Nigeria',           'NG', 'NGN', 'EMEA', 'Africa',         0],
+];
+emit('dim_country', ['country','iso2','currency_code','region','continent','is_eu'],
+  COUNTRIES.map(c => [q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), c[5]]));
+
+// ---------------------------------------------------------------------------
+// 18. fx_rates -- WEEKDAYS ONLY. The weekend holes are the lesson: an inner
+//     join on order_date = fx.day drops every Saturday and Sunday order.
+//     A deterministic random walk, so rates move but never drift far.
+// ---------------------------------------------------------------------------
+const BASE_FX = {
+  USD: 1, EUR: 0.921, GBP: 0.787, INR: 83.24, CAD: 1.361, JPY: 151.4,
+  AUD: 1.523, BRL: 5.048, MXN: 17.12, SGD: 1.347, NGN: 1478.0,
+};
+{
+  const rows = [];
+  const cur = { ...BASE_FX };
+  for (let ms = START; ms <= END; ms += DAY) {
+    const dow = new Date(ms).getUTCDay();
+    if (dow === 0 || dow === 6) continue;          // no weekend quotes
+    for (const [ccy, base] of Object.entries(BASE_FX)) {
+      if (ccy === 'USD') { rows.push([q(d2s(ms)), q('USD'), '1.000000']); continue; }
+      // random walk with a pull back towards base, so it wanders but stays sane
+      const drift = (base - cur[ccy]) * 0.02;
+      cur[ccy] = cur[ccy] * (1 + (rnd() - 0.5) * 0.008) + drift;
+      rows.push([q(d2s(ms)), q(ccy), cur[ccy].toFixed(6)]);
+    }
+  }
+  emit('fx_rates', ['day','currency_code','rate_to_usd'], rows);
+}
+
+// ---------------------------------------------------------------------------
+// 19. api_events -- LIST + STRUCT columns and a raw text payload.
+//     Dense over the last 120 days, the way a request log actually is.
+//     Contains: an error burst, retry storms sharing an idempotency_key,
+//     empty tag lists, and NULL payloads.
+// ---------------------------------------------------------------------------
+const ENDPOINTS = [
+  ['/v1/charges',        'POST',   0.34],
+  ['/v1/charges',        'GET',    0.14],
+  ['/v1/customers',      'GET',    0.16],
+  ['/v1/customers',      'POST',   0.06],
+  ['/v1/refunds',        'POST',   0.05],
+  ['/v1/payouts',        'GET',    0.09],
+  ['/v1/webhooks/test',  'POST',   0.06],
+  ['/v1/balance',        'GET',    0.10],
+];
+const TAG_POOL = ['retry','mobile','beta','internal','rate_limited','webhook','sandbox','legacy_sdk'];
+const OSES = [['ios','4.2.1',true],['ios','4.1.0',true],['android','4.2.0',true],
+              ['android','3.9.7',true],['macos','2.0.3',false],['windows','2.0.1',false],
+              ['linux','2.0.3',false]];
+{
+  const API_START = END - 120 * DAY;
+  // Three incidents where the 5xx rate jumps from ~2% to ~45%. They last most
+  // of a day on purpose: at ~35 events/day an hour-long blip would be two or
+  // three rows, which no z-score could separate from noise. A day-long
+  // incident is ~15 errors against a baseline of well under one.
+  const BURSTS = [API_START + 27 * DAY + 5 * 3600000, API_START + 63 * DAY + 9 * 3600000,
+                  API_START + 101 * DAY + 2 * 3600000];
+  const inBurst = (ms) => BURSTS.some(b => ms >= b && ms < b + 18 * 3600000);
+
+  const rows = [];
+  let id = 1;
+  for (let d = 0; d < 120; d++) {
+    const dayStart = API_START + d * DAY;
+    const dow = new Date(dayStart).getUTCDay();
+    const n = (dow === 0 || dow === 6) ? ri(14, 24) : ri(28, 44);   // quieter at weekends
+    for (let k = 0; k < n; k++) {
+      // business-hours-weighted time of day
+      const hour = chance(0.72) ? ri(8, 19) : ri(0, 23);
+      const ms = dayStart + hour * 3600000 + ri(0, 3599) * 1000;
+
+      let acc = rnd(), ep = ENDPOINTS[0];
+      for (const e of ENDPOINTS) { acc -= e[2]; if (acc <= 0) { ep = e; break; } }
+      const [endpoint, method] = ep;
+
+      const burst = inBurst(ms);
+      let status;
+      if (burst && chance(0.45))      status = pick([500, 503, 500, 502]);
+      else if (chance(0.045))         status = pick([400, 401, 404, 422, 429]);
+      else if (chance(0.020))         status = pick([500, 503]);
+      else                            status = method === 'POST' ? 201 : 200;
+
+      // failures and cold paths are slow; the burst drags the whole tail out
+      const base = status >= 500 ? gauss(900, 260) : status >= 400 ? gauss(120, 40) : gauss(altLatency(endpoint), 55);
+      const latency = Math.max(3, Math.round(base * (burst ? 1.8 : 1)));
+
+      const tags = [];
+      if (chance(0.16)) tags.push('retry');
+      if (chance(0.30)) tags.push('mobile');
+      if (status === 429) tags.push('rate_limited');
+      if (endpoint.includes('webhook')) tags.push('webhook');
+      if (chance(0.08)) tags.push(pick(TAG_POOL));
+      const uniqTags = [...new Set(tags)];         // some rows end up with []
+
+      const os = pick(OSES);
+      const cust = chance(0.09) ? null : ri(1, 140);   // unauthenticated calls
+      const key = method === 'GET' ? null : `idem_${String(id).padStart(6, '0')}`;
+
+      const payload = chance(0.08) ? null : (method === 'GET'
+        ? `{"limit":${pick([10, 25, 50, 100])},"starting_after":${chance(0.5) ? 'null' : `"ch_${ri(1000, 9999)}"`}}`
+        : `{"amount":${r2(gauss(74, 45) + 12).toFixed(2)},"currency":"${pick(['USD','EUR','GBP','INR'])}","source":"${pick(['card','bank','wallet'])}","livemode":${chance(0.8)}}`);
+
+      rows.push({ id: id++, cust, ms, endpoint, method, status, latency, key, tags: uniqTags, os, payload });
+    }
+  }
+
+  // Retry storms: a POST that failed is re-sent 1-3 times within a minute,
+  // carrying the SAME idempotency_key. Counting "requests" instead of
+  // "distinct idempotency_key" over-reports these, which is the point.
+  const retries = [];
+  for (const r of rows) {
+    const failed = r.status >= 500 || r.status === 429;
+    if (r.method === 'GET' || !failed || !chance(0.6)) continue;
+    const k = ri(1, 3);
+    for (let i = 1; i <= k; i++) {
+      retries.push({ ...r, id: id++, ms: r.ms + i * ri(2, 20) * 1000,
+        status: i === k && chance(0.7) ? 201 : r.status,
+        tags: [...new Set([...r.tags, 'retry'])] });
+    }
+  }
+  const all = [...rows, ...retries].sort((a, b) => a.ms - b.ms || a.id - b.id);
+
+  const lit = (a) => a.length ? `[${a.map(t => `'${t}'`).join(', ')}]` : `[]`;
+  emit('api_events',
+    ['event_id','customer_id','event_ts','endpoint','http_method','status_code',
+     'latency_ms','idempotency_key','tags','client','payload'],
+    all.map(r => [
+      r.id, n(r.cust), q(t2s(r.ms)), q(r.endpoint), q(r.method), r.status, r.latency,
+      q(r.key), lit(r.tags),
+      `{'os': '${r.os[0]}', 'app_version': '${r.os[1]}', 'is_mobile': ${r.os[2]}}`,
+      q(r.payload),
+    ]));
+}
+function altLatency(endpoint) {
+  // /v1/payouts is the slow one -- gives "which endpoint is worst" a real answer
+  if (endpoint === '/v1/payouts') return 310;
+  if (endpoint === '/v1/charges') return 140;
+  if (endpoint.includes('webhook')) return 220;
+  return 85;
+}
+
+// ---------------------------------------------------------------------------
+// 20. support_tickets -- deliberately messy human text.
+//     Subjects carry inconsistent casing and padding; bodies embed real
+//     order ids as ORD-000123 (and some malformed variants), e-mails and
+//     phone numbers. closed_ts IS NULL means the ticket never closed.
+// ---------------------------------------------------------------------------
+const SUBJECTS = [
+  'Refund not received', 'Card declined', 'Double charged', 'Cannot log in',
+  'Wrong item shipped', 'Payout delayed', 'Update billing address',
+  'Subscription cancelled by mistake', 'Invoice request', 'App crashes on checkout',
+];
+const BODY_OPEN = [
+  'Hi team,', 'Hello,', 'hi', 'Good morning,', 'Hey there --', 'To whom it may concern,',
+];
+const BODY_MID = [
+  'I placed an order last week and it still has not arrived.',
+  'my card was charged twice for the same thing, please advise.',
+  'The refund was promised within 5 business days and it has been 11.',
+  'I cannot complete checkout, the app closes as soon as I press pay.',
+  'Could you send me a VAT invoice for this please?',
+  'the payout says pending but the dashboard shows it as sent.',
+  'I was billed after cancelling. Please refund and confirm in writing.',
+];
+{
+  const rows = [];
+  const TK_START = mk('2025-06-01');
+  const nTickets = 640;
+  for (let i = 1; i <= nTickets; i++) {
+    const cust = ri(1, 140);
+    const opened = TK_START + ri(0, Math.round((END - TK_START) / DAY)) * DAY
+                 + ri(6, 21) * 3600000 + ri(0, 3599) * 1000;
+    const priority = chance(0.12) ? 'P1' : chance(0.45) ? 'P2' : 'P3';
+    // P1s get closed fast; a slice of every priority never closes at all
+    const stillOpen = chance(priority === 'P1' ? 0.05 : 0.14);
+    const hours = priority === 'P1' ? gauss(5, 3) : priority === 'P2' ? gauss(29, 16) : gauss(74, 41);
+    const closed = stillOpen ? null : opened + Math.max(1, Math.round(hours * 3600000));
+
+    // subject: same handful of topics, but the casing and padding are a mess,
+    // so GROUP BY subject gives ~30 groups and GROUP BY the trimmed, folded
+    // form gives 10. That gap is the exercise.
+    let subj = pick(SUBJECTS);
+    if (chance(0.22)) subj = subj.toUpperCase();
+    else if (chance(0.18)) subj = subj.toLowerCase();
+    if (chance(0.25)) subj = '  ' + subj;
+    if (chance(0.20)) subj = subj + '   ';
+    if (chance(0.10)) subj = 'RE: ' + subj;
+
+    const parts = [pick(BODY_OPEN), pick(BODY_MID)];
+    // most bodies quote an order reference, in one of three spellings
+    if (chance(0.78)) {
+      const oid = ri(1, 700);
+      const style = rnd();
+      parts.push(style < 0.62 ? `Order ORD-${String(oid).padStart(6, '0')}.`
+               : style < 0.85 ? `order ord-${String(oid).padStart(6, '0')} please.`
+               : `ref ORD${String(oid).padStart(6, '0')}`);
+    }
+    if (chance(0.34)) parts.push(`You can reach me at user${cust}@${pick(['example.com','mail.test'])}.`);
+    if (chance(0.22)) parts.push(`Phone: +${ri(1, 49)} ${ri(100, 999)} ${ri(100000, 999999)}`);
+    parts.push(pick(['Thanks,', 'Regards,', 'thanks!', 'Best,']));
+
+    rows.push([
+      i, cust, q(t2s(opened)), closed === null ? 'NULL' : q(t2s(closed)),
+      q(pick(['email', 'email', 'chat', 'phone'])), q(priority),
+      q(subj), q(parts.join(' ')),
+      closed === null || chance(0.18) ? 'NULL' : ri(1, 5),
+    ]);
+  }
+  emit('support_tickets',
+    ['ticket_id','customer_id','opened_ts','closed_ts','channel','priority',
+     'subject','body','satisfaction'], rows);
+}
+
 // ---------------------------------------------------------------------------
 const header = `-- =========================================================================
 --  GENERATED FILE -- do not edit by hand.

@@ -31,6 +31,9 @@
 //  ship).
 // ===========================================================================
 
+import { splitStatements, isReadOnlyQuery, toCSV } from './sqltext.js';
+export { splitStatements, isReadOnlyQuery, toCSV };
+
 const LOCAL_BASE = 'engine/duckdb/';
 const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/dist/';
 
@@ -165,7 +168,15 @@ export async function resetDatabase(onProgress = () => {}) {
 const FLOATY = /^(DECIMAL|NUMERIC|DOUBLE|FLOAT|REAL)/i;
 
 async function describe(sql) {
-  const r = await conn.query(`DESCRIBE ${strip(sql)}`);
+  let r;
+  try {
+    r = await conn.query(`DESCRIBE ${strip(sql)}`);
+  } catch (e) {
+    // The DESCRIBE wrapper is ours, not the user's. Leaving it in the message
+    // makes the engine point at a line of SQL nobody typed, so strip it back
+    // out and report the error against what they actually wrote.
+    throw new Error(String(e.message ?? e).replace(/\bDESCRIBE\s+/g, ''));
+  }
   return r.toArray().map(row => ({
     name: String(row.column_name),
     type: String(row.column_type),
@@ -208,17 +219,59 @@ export async function run(sql, { limit = 2000 } = {}) {
   };
 }
 
-/** Run statements that return nothing useful (DDL/DML) -- sandbox only. */
+/** Run statements that return nothing useful (DDL/DML) -- Explore mode only. */
 export async function exec(sql) {
   const t0 = performance.now();
   await conn.query(sql);
   return { ms: performance.now() - t0 };
 }
 
-export function isReadOnlyQuery(sql) {
-  const head = sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').trim().toUpperCase();
-  return /^(SELECT|WITH|DESCRIBE|EXPLAIN|SHOW|PIVOT|UNPIVOT|FROM|VALUES|TABLE)\b/.test(head);
+/**
+ * Execute a whole script in Explore mode.
+ *
+ * Statements run in declaration order, and the result shown is the last one
+ * that produced a grid -- so a recipe can set a table up and then select from
+ * it, and you see the select. Anything that writes clears the cached schema so
+ * the table browser notices new or dropped tables.
+ *
+ * Errors carry the index and text of the statement that failed, because "line
+ * 1" of statement four is not line 1 of what you typed.
+ *
+ * @returns {{ result: object|null, statements: number, executed: number, ms: number, wrote: boolean }}
+ */
+export async function runScript(sql, { limit = 2000 } = {}) {
+  const statements = splitStatements(sql);
+  if (!statements.length) throw new Error('Nothing to run.');
+
+  const t0 = performance.now();
+  let result = null, wrote = false, executed = 0;
+
+  for (const [i, stmt] of statements.entries()) {
+    try {
+      if (isReadOnlyQuery(stmt)) {
+        result = await run(stmt, { limit });
+      } else {
+        await conn.query(stmt);
+        wrote = true;
+        result = null;
+      }
+      executed++;
+    } catch (e) {
+      const err = new Error(String(e.message ?? e));
+      err.statementIndex = i;
+      err.statementCount = statements.length;
+      err.statement = stmt;
+      throw err;
+    }
+  }
+  return { result, statements: statements.length, executed, ms: performance.now() - t0, wrote };
 }
+
+/** First `limit` rows of one table, for the Explore data browser. */
+export async function previewTable(name, limit = 100) {
+  return run(`SELECT * FROM "${String(name).replace(/"/g, '""')}" LIMIT ${Number(limit) || 100}`);
+}
+
 
 // --- grading ----------------------------------------------------------------
 const rowKey = (r) => JSON.stringify(r);
@@ -234,7 +287,7 @@ export async function grade(userSql, exercise) {
   if (!isReadOnlyQuery(userSql)) {
     return {
       pass: false, reason: 'not-a-query',
-      detail: 'Answers must be a single SELECT / WITH query. Use the Sandbox if you want to modify data.',
+      detail: 'Answers must be a single SELECT / WITH query. Switch to Explore mode if you want to modify data.',
     };
   }
 

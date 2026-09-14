@@ -11,6 +11,8 @@ echo "== grading wrapper preserves ORDER BY =="
 node tools/check_order.mjs
 echo "== prompts' factual claims still hold =="
 node tools/check_claims.mjs
+echo "== every Explore recipe runs and returns rows =="
+node tools/check_recipes.mjs
 echo "== dataset still exhibits the properties the prompts claim =="
 node tools/check_dataset.mjs
 echo "== both engine sources (vendored + CDN) boot and query =="

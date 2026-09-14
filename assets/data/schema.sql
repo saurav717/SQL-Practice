@@ -42,6 +42,10 @@ DROP TABLE IF EXISTS daily_revenue;
 DROP TABLE IF EXISTS staging_customers;
 DROP TABLE IF EXISTS departments;
 DROP TABLE IF EXISTS employees;
+DROP TABLE IF EXISTS dim_country;
+DROP TABLE IF EXISTS fx_rates;
+DROP TABLE IF EXISTS api_events;
+DROP TABLE IF EXISTS support_tickets;
 
 -- ---------------------------------------------------------------------------
 -- dim_date -- the persisted calendar dimension (ref §2.2, §3.7)
@@ -305,3 +309,112 @@ CREATE TABLE employees (
 CREATE INDEX idx_txn_card_ts    ON transactions(card_id, txn_ts);
 CREATE INDEX idx_login_cust_ts  ON logins(customer_id, login_ts);
 CREATE INDEX idx_items_order    ON order_items(order_id);
+
+-- ===========================================================================
+--  EXPLORE-MODE TABLES
+--
+--  The four tables below are not required by any graded exercise. They exist
+--  so that free-form exploration in Explore mode can reach the classes of
+--  query the rest of the warehouse cannot pose: reference dimensions, rate
+--  lookups across a gappy calendar, semi-structured payloads, and messy human
+--  free text. Each is as deliberately awkward as the tables above.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- dim_country -- a small reference dimension.
+--
+-- Exists for: star-schema joins, region roll-ups, and currency lookup. It is
+-- the join bridge between customers/merchants (which carry a country NAME,
+-- not a key -- as denormalised warehouse tables usually do) and fx_rates.
+--
+-- DELIBERATE: several countries here have NO customers and NO merchants.
+-- A dimension that is wider than its facts is the normal case, and it is what
+-- makes "which markets have we not sold into yet" an anti-join rather than a
+-- trick question.
+-- ---------------------------------------------------------------------------
+CREATE TABLE dim_country (
+    country       TEXT PRIMARY KEY,   -- joins to customers.country / merchants.country
+    iso2          TEXT NOT NULL,
+    currency_code TEXT NOT NULL,      -- joins to fx_rates.currency_code
+    region        TEXT NOT NULL,      -- 'EMEA','AMER','APAC'
+    continent     TEXT NOT NULL,
+    is_eu         INTEGER NOT NULL
+);
+
+-- ---------------------------------------------------------------------------
+-- fx_rates -- one row per (day, currency), rate expressed as units per 1 USD.
+--
+-- Exists for: currency conversion, and the lookup-across-a-gap problem.
+--
+-- DELIBERATE: rates exist on WEEKDAYS ONLY. Markets do not quote at weekends,
+-- so a Saturday order has no same-day rate. An inner join on
+-- order_date = fx.day silently DROPS every weekend order. The correct forms
+-- are an as-of lookup (most recent rate <= order date) or a gap-filled spine
+-- with LAST_VALUE(...) IGNORE NULLS. USD is present at exactly 1.0 so that
+-- converting a USD figure is a no-op rather than a special case.
+-- ---------------------------------------------------------------------------
+CREATE TABLE fx_rates (
+    day           DATE NOT NULL,
+    currency_code TEXT NOT NULL,
+    rate_to_usd   DECIMAL(14,6) NOT NULL,   -- units of this currency per 1 USD
+    PRIMARY KEY (day, currency_code)
+);
+
+-- ---------------------------------------------------------------------------
+-- api_events -- semi-structured request log.
+--
+-- Exists for: LIST and STRUCT columns, and text extraction from a raw payload.
+--
+-- ON TYPES: tags is a real LIST and client is a real STRUCT, because both are
+-- core DuckDB types that need no extension. payload is deliberately VARCHAR
+-- holding raw JSON text rather than the JSON type -- DuckDB's json extension
+-- is a *loadable* extension fetched over the network in the wasm build, so a
+-- JSON column would make this table unloadable offline. Extracting fields out
+-- of a raw text payload with regexp_extract is in any case what you end up
+-- doing on engines without a native variant type.
+--
+-- DELIBERATE: empty tag lists, NULL payloads, an error burst concentrated in
+-- a few hours (so anomaly detection over time has something to find), and
+-- retry storms -- the same idempotency_key repeated seconds apart.
+-- ---------------------------------------------------------------------------
+CREATE TABLE api_events (
+    event_id        INTEGER PRIMARY KEY,
+    customer_id     INTEGER,             -- NULL for unauthenticated calls
+    event_ts        TIMESTAMP NOT NULL,
+    endpoint        TEXT NOT NULL,       -- '/v1/charges', '/v1/customers', ...
+    http_method     TEXT NOT NULL,
+    status_code     INTEGER NOT NULL,    -- 200/201/400/401/404/422/429/500/503
+    latency_ms      INTEGER NOT NULL,
+    idempotency_key TEXT,                -- repeats across retries; NULL on GETs
+    tags            TEXT[] NOT NULL,     -- LIST: unnest / list_contains practice
+    client          STRUCT(os TEXT, app_version TEXT, is_mobile BOOLEAN),
+    payload         TEXT                 -- raw JSON text; NULL on some rows
+);
+
+-- ---------------------------------------------------------------------------
+-- support_tickets -- human-written free text, uncleaned.
+--
+-- Exists for: regex extraction, string normalisation, and duration/SLA maths.
+--
+-- DELIBERATE: subjects arrive with inconsistent casing and padded whitespace,
+-- bodies embed order references in the form ORD-000123 (sometimes lowercase,
+-- sometimes with no dash), plus e-mail addresses and phone numbers. Trimming
+-- and folding case before grouping is the difference between 5 categories and
+-- 30. closed_ts IS NULL means still open, so any average-resolution-time query
+-- has to decide what to do about the ones that never closed.
+-- ---------------------------------------------------------------------------
+CREATE TABLE support_tickets (
+    ticket_id    INTEGER PRIMARY KEY,
+    customer_id  INTEGER NOT NULL,
+    opened_ts    TIMESTAMP NOT NULL,
+    closed_ts    TIMESTAMP,            -- NULL = still open
+    channel      TEXT NOT NULL,        -- 'email','chat','phone'
+    priority     TEXT NOT NULL,        -- 'P1','P2','P3'
+    subject      TEXT NOT NULL,        -- messy: casing + padding are inconsistent
+    body         TEXT NOT NULL,        -- free text; embeds ORD-nnnnnn, emails, phones
+    satisfaction INTEGER               -- 1..5, NULL while open or unanswered
+);
+
+CREATE INDEX idx_api_events_ts   ON api_events(event_ts);
+CREATE INDEX idx_fx_day_ccy      ON fx_rates(day, currency_code);
+CREATE INDEX idx_tickets_cust    ON support_tickets(customer_id, opened_ts);

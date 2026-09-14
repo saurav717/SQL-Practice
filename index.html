@@ -36,7 +36,7 @@
       <span class="engine-label">Target</span>
       <select id="engine-select"></select>
     </label>
-    <button id="btn-sandbox" class="btn btn-ghost" title="Free-form query editor">Sandbox</button>
+    <button id="btn-explore" class="btn btn-ghost" title="Free-form SQL against the whole warehouse (E)">Explore</button>
     <button id="btn-reset-db" class="btn btn-ghost" title="Reload the dataset from scratch">Reset data</button>
     <button id="btn-theme" class="btn btn-icon" title="Toggle light / dark">◐</button>
   </div>
@@ -46,14 +46,22 @@
 
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-head">
+      <div class="filter-row explore-only" id="browser-switch">
+        <button class="chip chip-on" data-browser="tables">Tables</button>
+        <button class="chip" data-browser="recipes">Recipes</button>
+        <button class="chip" data-browser="history">History</button>
+      </div>
       <input id="search" type="search" placeholder="Filter exercises…" autocomplete="off">
-      <div class="filter-row" id="status-filter">
+      <div class="filter-row practice-only" id="status-filter">
         <button class="chip chip-on" data-filter="all">All</button>
         <button class="chip" data-filter="todo">Unsolved</button>
         <button class="chip" data-filter="done">Solved</button>
       </div>
     </div>
-    <nav id="exercise-list" class="exercise-list"></nav>
+    <nav id="exercise-list" class="exercise-list practice-only"></nav>
+    <nav id="table-list"   class="exercise-list explore-list" hidden></nav>
+    <nav id="recipe-list"  class="exercise-list explore-list" hidden></nav>
+    <nav id="history-list" class="exercise-list explore-list" hidden></nav>
     <div class="sidebar-foot">
       <span id="engine-version" class="muted"></span>
     </div>
@@ -75,13 +83,27 @@
       <div id="ex-prompt" class="prose"></div>
     </article>
 
+    <article class="pane explore-pane" id="explore-pane" hidden>
+      <div class="explore-head">
+        <div>
+          <div class="crumb"><span id="explore-kicker">Explore</span></div>
+          <h2 id="explore-title">Free-form SQL</h2>
+        </div>
+        <div class="prompt-badges">
+          <span class="badge" id="explore-badge">scratch</span>
+        </div>
+      </div>
+      <div id="explore-note" class="prose"></div>
+    </article>
+
     <article class="pane editor-pane">
       <div class="toolbar">
         <button id="btn-run"   class="btn btn-primary">Run <kbd>⌘↵</kbd></button>
-        <button id="btn-check" class="btn btn-accent">Check answer <kbd>⌘⇧↵</kbd></button>
+        <button id="btn-check" class="btn btn-accent practice-only">Check answer <kbd>⌘⇧↵</kbd></button>
         <span class="toolbar-gap"></span>
-        <button id="btn-hint"     class="btn btn-ghost">Hint</button>
-        <button id="btn-solution" class="btn btn-ghost">Show solution</button>
+        <button id="btn-hint"     class="btn btn-ghost practice-only">Hint</button>
+        <button id="btn-solution" class="btn btn-ghost practice-only">Show solution</button>
+        <button id="btn-csv"      class="btn btn-ghost explore-only" title="Download the result as CSV" disabled>CSV</button>
         <button id="btn-clear"    class="btn btn-ghost" title="Clear the editor">Clear</button>
       </div>
 
@@ -98,9 +120,9 @@
     <article class="pane output-pane">
       <div class="tabs" id="tabs">
         <button class="tab tab-on" data-tab="results">Results</button>
-        <button class="tab" data-tab="feedback">Feedback <span id="feedback-dot" class="dot" hidden></span></button>
+        <button class="tab practice-only" data-tab="feedback">Feedback <span id="feedback-dot" class="dot" hidden></span></button>
         <button class="tab" data-tab="portability">Portability <span id="lint-count" class="pill" hidden>0</span></button>
-        <button class="tab" data-tab="dialect">Dialect notes</button>
+        <button class="tab practice-only" data-tab="dialect">Dialect notes</button>
         <button class="tab" data-tab="schema">Schema</button>
       </div>
 

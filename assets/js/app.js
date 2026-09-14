@@ -5,6 +5,7 @@
 // ===========================================================================
 import * as engine from './engine.js';
 import { EXERCISES, TRACKS, ENGINES, ENGINE_LABELS } from './curriculum.js';
+import { RECIPES, RECIPE_CATEGORIES, recipeById } from './recipes.js';
 
 const $  = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -14,16 +15,30 @@ const DIFF_LABEL = { 1: 'warm-up', 2: 'core', 3: 'hard', 4: 'interview-grade' };
 
 const state = loadState();
 let schemaCache = null;
-let sandbox = false;
+/** Explore mode: free-form SQL over the whole warehouse, no grading. */
+let explore = false;
+/** The most recent Explore result, kept so the CSV button has something to save. */
+let lastResult = null;
+const HISTORY_MAX = 60;
 
 function loadState() {
   const base = {
     solved: {}, attempted: {}, revealed: {}, drafts: {},
     hintsShown: {}, engine: 'redshift', theme: 'dark',
     current: EXERCISES[0].id,
+    // Explore mode
+    explore: false, exploreDraft: '', history: [], browserTab: 'tables',
+    openTables: {}, lastRecipe: null,
   };
   try {
-    return { ...base, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') };
+    const saved = { ...base, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') };
+    // Explore mode used to be called the Sandbox and kept its draft alongside
+    // the exercise drafts. Carry an old one over rather than dropping it.
+    if (!saved.exploreDraft && saved.drafts && saved.drafts.__sandbox) {
+      saved.exploreDraft = saved.drafts.__sandbox;
+      delete saved.drafts.__sandbox;
+    }
+    return saved;
   } catch { return base; }
 }
 function saveState() {
@@ -133,7 +148,9 @@ function paintEditor() {
 
 editor.addEventListener('input', () => {
   paintEditor();
-  if (!sandbox) { state.drafts[state.current] = editor.value; saveState(); }
+  if (explore) state.exploreDraft = editor.value;
+  else state.drafts[state.current] = editor.value;
+  saveState();
   scheduleLint();
 });
 editor.addEventListener('scroll', () => {
@@ -200,7 +217,7 @@ function renderSidebar() {
     for (const ex of items) {
       const st = exerciseStatus(ex.id);
       const btn = document.createElement('button');
-      btn.className = 'ex-item' + (ex.id === state.current && !sandbox ? ' ex-item-on' : '');
+      btn.className = 'ex-item' + (ex.id === state.current && !explore ? ' ex-item-on' : '');
       btn.innerHTML =
         `<span class="ex-state ex-state-${st}">${STATE_GLYPH[st]}</span>` +
         `<span class="ex-name">${esc(ex.title)}</span>` +
@@ -219,8 +236,7 @@ function renderSidebar() {
 // Rendering: exercise
 // ---------------------------------------------------------------------------
 function selectExercise(id) {
-  sandbox = false;
-  document.body.classList.remove('sandbox');
+  if (explore) setExplore(false);
   state.current = id;
   saveState();
   renderExercise();
@@ -317,28 +333,74 @@ function setStatus(left, right, isError = false) {
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
+/**
+ * Run whatever is in the editor.
+ *
+ * In Explore mode this is a whole script: several statements, DDL and DML
+ * allowed, and the grid shows the last statement that produced one. If text is
+ * selected, only the selection runs -- the usual way to try one clause of a
+ * long query without deleting the rest.
+ */
 async function doRun() {
-  const sql = editor.value.trim();
+  const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
+  const sql = (explore && selected ? selected : editor.value).trim();
   if (!sql) return;
   showTab('results');
   setStatus('Running…', '');
-  try {
-    if (sandbox && !engine.isReadOnlyQuery(sql)) {
-      const { ms } = await engine.exec(sql);
-      $('#tab-results').innerHTML = '<p class="placeholder">Statement executed. It returned no result set.</p>';
-      schemaCache = null;
-      setStatus(`Executed in ${ms.toFixed(0)} ms`, 'sandbox');
-      return;
+
+  if (!explore) {
+    try {
+      const res = await engine.run(sql);
+      setLastResult(res);
+      renderGrid(res);
+      setStatus(`${res.rowCount.toLocaleString()} rows in ${res.ms.toFixed(0)} ms`,
+                `${res.columns.length} columns`);
+    } catch (e) {
+      showQueryError(e);
     }
-    const res = await engine.run(sql);
-    renderGrid(res);
-    setStatus(`${res.rowCount.toLocaleString()} rows in ${res.ms.toFixed(0)} ms`,
-              `${res.columns.length} columns`);
-  } catch (e) {
-    $('#tab-results').innerHTML =
-      `<div class="verdict verdict-bad"><h3>Query error</h3><pre>${esc(e.message ?? e)}</pre></div>`;
-    setStatus('Query failed', '', true);
+    return;
   }
+
+  try {
+    const { result, statements, ms, wrote } = await engine.runScript(sql);
+    // Anything that wrote may have added or dropped a table.
+    if (wrote) { schemaCache = null; if (state.browserTab === 'tables') renderBrowser(); }
+
+    const scope = selected ? 'selection' : `${statements} statement${statements === 1 ? '' : 's'}`;
+    if (result) {
+      setLastResult(result);
+      renderGrid(result);
+      setStatus(`${result.rowCount.toLocaleString()} rows in ${ms.toFixed(0)} ms`,
+                `${result.columns.length} columns · ${scope}`);
+    } else {
+      setLastResult(null);
+      $('#tab-results').innerHTML =
+        `<p class="placeholder">Ran ${esc(scope)}. Nothing returned a result set — that is expected for DDL and DML.</p>` +
+        `<p class="placeholder">Use <strong>Reset data</strong> in the top bar to put the warehouse back exactly as it shipped.</p>`;
+      setStatus(`Executed in ${ms.toFixed(0)} ms`, scope);
+    }
+    pushHistory(sql);
+  } catch (e) {
+    showQueryError(e);
+  }
+}
+
+/** Render a query failure, naming which statement failed when there were several. */
+function showQueryError(e) {
+  const where = e.statementCount > 1
+    ? `<p class="placeholder">Failed on statement ${e.statementIndex + 1} of ${e.statementCount}. Earlier statements already ran.</p>`
+      + `<pre class="err-stmt">${highlightSQL(String(e.statement).slice(0, 600))}</pre>`
+    : '';
+  $('#tab-results').innerHTML =
+    `<div class="verdict verdict-bad"><h3>Query error</h3><pre>${esc(e.message ?? e)}</pre></div>` + where;
+  setLastResult(null);
+  setStatus('Query failed', '', true);
+}
+
+function setLastResult(res) {
+  lastResult = res;
+  const btn = $('#btn-csv');
+  if (btn) btn.disabled = !res || !res.rows.length;
 }
 
 async function doCheck() {
@@ -463,6 +525,280 @@ async function renderSchema() {
   });
 }
 
+// ===========================================================================
+//  Explore mode
+//
+//  Same editor, different contract: no exercise, no grading, DDL and DML
+//  allowed, and the sidebar becomes a browser over the data instead of a list
+//  of exercises. Everything here is additive -- practice mode is untouched.
+// ===========================================================================
+
+const WELCOME = `Free-form SQL against all 24 tables. Nothing is graded here.
+
+- **Tables** lists every table; click one to preview it, or click a column to insert its name.
+- **Recipes** is ${RECIPES.length} ready-to-run queries covering every pattern this warehouse can pose — load one, run it, then take it apart.
+- **History** keeps your last ${HISTORY_MAX} queries.
+
+Several statements separated by \`;\` run in order, and the grid shows the last one that returned rows. Select part of a query to run only that part. **Reset data** restores the warehouse.`;
+
+function setExplore(on) {
+  explore = on;
+  state.explore = on;
+  document.body.classList.toggle('explore', on);
+  $('#btn-explore').classList.toggle('btn-on', on);
+  $('#btn-explore').setAttribute('aria-pressed', String(on));
+  editor.placeholder = on
+    ? 'Any SQL, including DDL and DML. \u2318\u21B5 to run. Several statements separated by ; run in order.'
+    : 'Write your query here. \u2318\u21B5 to run, \u2318\u21E7\u21B5 to check.';
+  $('#explore-pane').hidden = !on;
+  $('#search').placeholder = on ? 'Filter tables, columns, recipes…' : 'Filter exercises…';
+  $('#search').value = '';
+  setLastResult(null);
+
+  if (on) {
+    setEditor(state.exploreDraft || '');
+    const r = state.lastRecipe && recipeById(state.lastRecipe);
+    showExploreHeader(r || null);
+    $('#tab-results').innerHTML = '<p class="placeholder">No results yet. Pick a table or a recipe from the sidebar, or just start typing.</p>';
+    showTab('results');
+    renderBrowser();
+  } else {
+    renderExercise();
+  }
+  renderSidebar();
+  saveState();
+}
+
+/** The pane above the editor: either a loaded recipe's note, or the welcome text. */
+function showExploreHeader(recipe) {
+  const cat = recipe && RECIPE_CATEGORIES.find(k => k.id === recipe.cat);
+  $('#explore-kicker').textContent = recipe ? (cat ? cat.name : 'Recipe') : 'Explore';
+  $('#explore-title').textContent = recipe ? recipe.title : 'Free-form SQL';
+  $('#explore-badge').textContent = recipe ? 'recipe' : 'scratch';
+  $('#explore-note').innerHTML = markdown(recipe ? recipe.note : WELCOME);
+}
+
+/** Which sidebar browser is showing: tables, recipes or history. */
+function setBrowserTab(name) {
+  state.browserTab = name;
+  saveState();
+  $$('#browser-switch .chip').forEach(c => c.classList.toggle('chip-on', c.dataset.browser === name));
+  renderBrowser();
+}
+
+function renderBrowser() {
+  $('#table-list').hidden   = state.browserTab !== 'tables';
+  $('#recipe-list').hidden  = state.browserTab !== 'recipes';
+  $('#history-list').hidden = state.browserTab !== 'history';
+  if (state.browserTab === 'tables')  renderTableBrowser();
+  if (state.browserTab === 'recipes') renderRecipeBrowser();
+  if (state.browserTab === 'history') renderHistoryBrowser();
+}
+
+/** Insert text at the caret, the way the schema tab already does. */
+function insertAtCaret(text) {
+  const { selectionStart: a, selectionEnd: b } = editor;
+  editor.value = editor.value.slice(0, a) + text + editor.value.slice(b);
+  editor.selectionStart = editor.selectionEnd = a + text.length;
+  editor.focus();
+  editor.dispatchEvent(new Event('input'));
+}
+
+async function renderTableBrowser() {
+  const list = $('#table-list');
+  if (!schemaCache) {
+    list.innerHTML = '<p class="placeholder">Reading schema…</p>';
+    try { schemaCache = await engine.getSchema(); }
+    catch (e) { list.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+  }
+  const q = $('#search').value.trim().toLowerCase();
+  list.innerHTML = '';
+
+  const tables = schemaCache.filter(t =>
+    !q || t.name.toLowerCase().includes(q) || t.columns.some(c => c.name.toLowerCase().includes(q)));
+
+  if (!tables.length) {
+    list.innerHTML = '<p class="placeholder">No table or column matches that.</p>';
+    return;
+  }
+
+  for (const t of tables) {
+    const open = !!state.openTables[t.name] || (q && t.columns.some(c => c.name.toLowerCase().includes(q)));
+
+    const head = document.createElement('div');
+    head.className = 'tbl-head';
+    head.innerHTML =
+      `<button class="tbl-toggle" aria-expanded="${open}">` +
+        `<span class="tbl-caret">${open ? '▾' : '▸'}</span>` +
+        `<span class="tbl-name">${esc(t.name)}</span>` +
+        `<span class="tbl-rows">${t.rowCount === null ? '' : t.rowCount.toLocaleString()}</span>` +
+      `</button>` +
+      `<button class="tbl-peek" title="Preview the first 100 rows">peek</button>`;
+
+    head.querySelector('.tbl-toggle').addEventListener('click', () => {
+      state.openTables[t.name] = !open;
+      saveState();
+      renderTableBrowser();
+    });
+    head.querySelector('.tbl-peek').addEventListener('click', () => previewTable(t.name));
+    list.append(head);
+
+    if (!open) continue;
+    const cols = document.createElement('div');
+    cols.className = 'tbl-cols';
+    cols.innerHTML = t.columns.map(c =>
+      `<button class="tbl-col" data-insert="${esc(c.name)}" title="Insert ${esc(c.name)}">` +
+        `<span>${esc(c.name)}</span><span class="ct">${esc(c.type)}</span></button>`).join('');
+    cols.querySelectorAll('[data-insert]').forEach(el =>
+      el.addEventListener('click', () => insertAtCaret(el.dataset.insert)));
+    list.append(cols);
+  }
+}
+
+async function previewTable(name) {
+  const sql = `SELECT * FROM ${name} LIMIT 100;`;
+  setEditor(sql);
+  state.exploreDraft = sql;
+  state.lastRecipe = null;
+  showExploreHeader(null);
+  saveState();
+  showTab('results');
+  setStatus('Running…', '');
+  try {
+    const res = await engine.previewTable(name, 100);
+    setLastResult(res);
+    renderGrid(res);
+    setStatus(`${res.rowCount.toLocaleString()} rows in ${res.ms.toFixed(0)} ms`,
+              `${res.columns.length} columns · preview of ${name}`);
+    pushHistory(sql);
+  } catch (e) { showQueryError(e); }
+}
+
+function renderRecipeBrowser() {
+  const q = $('#search').value.trim().toLowerCase();
+  const list = $('#recipe-list');
+  list.innerHTML = '';
+  let shown = 0;
+
+  for (const cat of RECIPE_CATEGORIES) {
+    const items = RECIPES.filter(r => r.cat === cat.id && (!q ||
+      `${r.title} ${r.note} ${r.sql}`.toLowerCase().includes(q)));
+    if (!items.length) continue;
+
+    const head = document.createElement('div');
+    head.className = 'track-head';
+    head.innerHTML = `<span>${esc(cat.name)}</span><span class="track-count">${items.length}</span>`;
+    list.append(head);
+
+    const src = document.createElement('div');
+    src.className = 'track-source';
+    src.textContent = cat.blurb;
+    list.append(src);
+
+    for (const r of items) {
+      const btn = document.createElement('button');
+      btn.className = 'ex-item' + (state.lastRecipe === r.id ? ' ex-item-on' : '');
+      btn.innerHTML = `<span class="ex-state ex-state-recipe">▷</span><span class="ex-name">${esc(r.title)}</span>`;
+      btn.addEventListener('click', () => loadRecipe(r.id));
+      list.append(btn);
+      shown++;
+    }
+  }
+  if (!shown) list.innerHTML = '<p class="placeholder">No recipe matches that.</p>';
+}
+
+async function loadRecipe(id) {
+  const r = recipeById(id);
+  if (!r) return;
+  state.lastRecipe = id;
+  state.exploreDraft = r.sql;
+  saveState();
+  setEditor(r.sql);
+  showExploreHeader(r);
+  renderRecipeBrowser();
+  // Clear any lingering selection so doRun() takes the whole recipe.
+  editor.selectionStart = editor.selectionEnd = 0;
+  await doRun();
+}
+
+// --- history ---------------------------------------------------------------
+// Newest first, de-duplicated, capped. Stored with the rest of the state, so
+// it survives a reload the same way exercise progress does.
+function pushHistory(sql) {
+  const text = String(sql).trim();
+  if (!text) return;
+  state.history = [{ sql: text, at: Date.now() },
+                   ...state.history.filter(h => h.sql !== text)].slice(0, HISTORY_MAX);
+  saveState();
+  if (state.browserTab === 'history') renderHistoryBrowser();
+}
+
+function renderHistoryBrowser() {
+  const q = $('#search').value.trim().toLowerCase();
+  const list = $('#history-list');
+  const items = state.history.filter(h => !q || h.sql.toLowerCase().includes(q));
+
+  if (!items.length) {
+    list.innerHTML = state.history.length
+      ? '<p class="placeholder">No query in your history matches that.</p>'
+      : '<p class="placeholder">Queries you run in Explore mode show up here.</p>';
+    return;
+  }
+
+  list.innerHTML = '';
+  const clear = document.createElement('div');
+  clear.className = 'track-head';
+  clear.innerHTML = `<span>Recent</span><button class="track-count link-btn" id="btn-clear-history">clear</button>`;
+  list.append(clear);
+  clear.querySelector('#btn-clear-history').addEventListener('click', () => {
+    if (!confirm('Clear your query history?')) return;
+    state.history = [];
+    saveState();
+    renderHistoryBrowser();
+  });
+
+  for (const h of items) {
+    const btn = document.createElement('button');
+    btn.className = 'hist-item';
+    btn.innerHTML = `<span class="hist-sql">${esc(oneLine(h.sql))}</span>` +
+                    `<span class="hist-at">${esc(agoLabel(h.at))}</span>`;
+    btn.title = h.sql;
+    btn.addEventListener('click', () => {
+      setEditor(h.sql);
+      state.exploreDraft = h.sql;
+      state.lastRecipe = null;
+      showExploreHeader(null);
+      saveState();
+      editor.focus();
+    });
+    list.append(btn);
+  }
+}
+
+const oneLine = (sql) => sql.replace(/--[^\n]*/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90);
+
+function agoLabel(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+/** Save the current result grid as a CSV file. */
+function downloadCSV() {
+  if (!lastResult || !lastResult.rows.length) return;
+  const blob = new Blob([engine.toCSV(lastResult)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sql-practice-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // --- tabs -------------------------------------------------------------------
 function showTab(name) {
   $$('.tab').forEach(t => t.classList.toggle('tab-on', t.dataset.tab === name));
@@ -503,23 +839,19 @@ function wire() {
 
   $('#btn-clear').addEventListener('click', () => { setEditor(''); editor.focus(); });
 
-  $('#btn-sandbox').addEventListener('click', () => {
-    sandbox = !sandbox;
-    document.body.classList.toggle('sandbox', sandbox);
-    $('#btn-sandbox').classList.toggle('btn-primary', sandbox);
-    if (sandbox) {
-      setEditor(state.drafts.__sandbox ?? '-- Sandbox: any SQL, including DDL and DML.\n-- "Reset data" restores the dataset.\n\nSELECT table_name, estimated_size\nFROM duckdb_tables()\nORDER BY table_name;');
-    } else {
-      renderExercise();
-    }
-    renderSidebar();
-  });
+  $('#btn-explore').addEventListener('click', () => setExplore(!explore));
+  $('#btn-csv').addEventListener('click', downloadCSV);
+
+  $$('#browser-switch .chip').forEach(chip =>
+    chip.addEventListener('click', () => setBrowserTab(chip.dataset.browser)));
 
   $('#btn-reset-db').addEventListener('click', async () => {
-    if (!confirm('Reload the dataset from scratch? Any data you changed in the Sandbox is discarded.')) return;
+    if (!confirm('Reload the dataset from scratch?\n\nTables you created and rows you changed in Explore mode are discarded. Your saved queries, history and exercise progress are kept.')) return;
     setStatus('Reloading dataset…', '');
     await engine.resetDatabase(msg => setStatus(msg, ''));
     schemaCache = null;
+    setLastResult(null);
+    if (explore && state.browserTab === 'tables') renderBrowser();
     setStatus('Dataset reloaded', '');
   });
 
@@ -539,7 +871,7 @@ function wire() {
     renderDialect();
   });
 
-  $('#search').addEventListener('input', renderSidebar);
+  $('#search').addEventListener('input', () => explore ? renderBrowser() : renderSidebar());
   $$('#status-filter .chip').forEach(chip => {
     chip.addEventListener('click', () => {
       $$('#status-filter .chip').forEach(c => c.classList.remove('chip-on'));
@@ -554,19 +886,21 @@ function wire() {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key === 'Enter') {
       e.preventDefault();
-      if (e.shiftKey && !sandbox) doCheck(); else doRun();
+      if (e.shiftKey && !explore) doCheck(); else doRun();
     }
     if (e.altKey && e.key === 'ArrowRight') {
       e.preventDefault();
       const n = nextUnsolved();
       if (n) selectExercise(n.id);
     }
+    // A bare letter shortcut must never fire while the user is typing SQL.
+    const typing = ['TEXTAREA', 'INPUT', 'SELECT'].includes(document.activeElement?.tagName);
+    if (!typing && !mod && !e.altKey && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      setExplore(!explore);
+    }
   });
 
-  // sandbox drafts are kept separately from exercise drafts
-  editor.addEventListener('input', () => {
-    if (sandbox) { state.drafts.__sandbox = editor.value; saveState(); }
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -607,5 +941,9 @@ function wire() {
   renderExercise();
   renderSidebar();
   renderLint();
+  $$('#browser-switch .chip').forEach(c =>
+    c.classList.toggle('chip-on', c.dataset.browser === state.browserTab));
+  // Come back to whichever mode you left in, rather than always to exercise 1.
+  if (state.explore) setExplore(true);
   editor.focus();
 })();

@@ -9,10 +9,11 @@
     "seed": "node tools/gen_seed.mjs",
     "check": "bash tools/check_all.sh",
     "check:exercises": "node tools/check_exercises.mjs",
+    "check:recipes": "node tools/check_recipes.mjs",
     "check:browser": "node tools/browser_test.mjs"
   },
   "devDependencies": {
-    "@duckdb/node-api": "^1.4.0",
+    "@duckdb/node-api": "1.5.5-r.5",
     "esbuild": "^0.25.0",
     "playwright": "^1.50.0"
   }

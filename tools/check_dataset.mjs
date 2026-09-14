@@ -15,9 +15,16 @@ const tabs = (await rows("SELECT table_name FROM information_schema.tables ORDER
 for (const t of tabs) console.log('  ' + t.padEnd(20), (await rows(`SELECT count(*) FROM ${t}`))[0][0]);
 
 console.log('\n--- signal checks (each exercise needs these to be non-trivial) ---');
+// A failing invariant has to fail the BUILD, not just print a word. These
+// assertions are the only thing standing between a generator tweak and a
+// silently broken lesson.
+let failed = 0;
 const chk = async (label, sql, want) => {
-  const v = (await rows(sql))[0][0];
-  console.log(`  ${want(v) ? 'OK  ' : 'BAD '} ${label.padEnd(46)} ${v}`);
+  let v, ok;
+  try { v = (await rows(sql))[0][0]; ok = want(v); }
+  catch (e) { v = `ERROR: ${String(e.message).split('\n')[0].slice(0, 70)}`; ok = false; }
+  if (!ok) failed++;
+  console.log(`  ${ok ? 'OK  ' : 'BAD '} ${label.padEnd(46)} ${v}`);
 };
 await chk('empty department exists (anti-join)',
   "SELECT count(*) FROM departments d WHERE NOT EXISTS (SELECT 1 FROM employees e WHERE e.department_id=d.department_id)", v=>v>=1);
@@ -70,4 +77,56 @@ await chk('Snowflake compat: DATEADD runs',
   "SELECT count(*) FROM transactions WHERE txn_ts >= DATEADD('day',-30, TIMESTAMP '2026-09-14 00:00:00')", v=>v>10);
 await chk('Snowflake compat: CONVERT_TIMEZONE DST-correct',
   "SELECT CONVERT_TIMEZONE('UTC','America/New_York', TIMESTAMP '2026-07-15 16:00:00') = TIMESTAMP '2026-07-15 12:00:00'", v=>v===true||v==='true');
+
+// --- Explore-mode tables ---------------------------------------------------
+// These four feed Explore mode rather than a graded exercise, but the recipes
+// lean on the same deliberate awkwardness, so it gets asserted the same way.
+console.log('\n--- explore-mode tables (dim_country, fx_rates, api_events, support_tickets) ---');
+
+await chk('countries with no customers (anti-join)',
+  "SELECT count(*) FROM dim_country d WHERE NOT EXISTS (SELECT 1 FROM customers c WHERE c.country=d.country)", v=>v>=3);
+await chk('every customer country is in dim_country',
+  "SELECT count(*) FROM customers c WHERE NOT EXISTS (SELECT 1 FROM dim_country d WHERE d.country=c.country)", v=>v===0);
+await chk('fx_rates has NO weekend quotes (the gap)',
+  "SELECT count(*) FROM fx_rates WHERE dayofweek(day) IN (0,6)", v=>v===0);
+await chk('orders on days with no fx rate (the trap)',
+  "SELECT count(*) FROM orders o WHERE NOT EXISTS (SELECT 1 FROM fx_rates f WHERE f.day=CAST(o.order_ts AS DATE))", v=>v>=50);
+await chk('USD is exactly 1.0 on every day',
+  "SELECT count(*) FROM fx_rates WHERE currency_code='USD' AND rate_to_usd <> 1", v=>v===0);
+await chk('as-of fx lookup reaches every order',
+  "SELECT count(*) FROM orders o ASOF JOIN (SELECT * FROM fx_rates WHERE currency_code='EUR') f ON f.day <= CAST(o.order_ts AS DATE)", v=>v>=690);
+
+await chk('api_events LIST column: empty lists exist',
+  "SELECT count(*) FROM api_events WHERE len(tags)=0", v=>v>=100);
+await chk('api_events STRUCT column is addressable',
+  "SELECT count(DISTINCT client.os) FROM api_events", v=>v>=4);
+await chk('api_events NULL payloads exist',
+  "SELECT count(*) FROM api_events WHERE payload IS NULL", v=>v>=50);
+await chk('payload fields are regex-extractable',
+  "SELECT count(*) FROM api_events WHERE nullif(regexp_extract(payload,'\"currency\":\"([A-Z]{3})\"',1),'') IS NOT NULL", v=>v>=500);
+await chk('retry storms: keys reused within a minute',
+  "SELECT count(*) FROM (SELECT idempotency_key FROM api_events WHERE idempotency_key IS NOT NULL GROUP BY 1 HAVING count(*)>1)", v=>v>=20);
+await chk('error bursts are findable by daily z-score',
+  `WITH d AS (SELECT CAST(event_ts AS DATE) dy, count(*) FILTER (WHERE status_code>=500) e FROM api_events GROUP BY 1)
+   SELECT count(*) FROM (SELECT (e-avg(e) OVER())/nullif(stddev_samp(e) OVER(),0) z FROM d) WHERE z > 2.5`, v=>v>=3);
+await chk('one endpoint is clearly the slow one',
+  "SELECT count(*) FROM (SELECT endpoint FROM api_events GROUP BY 1 HAVING quantile_cont(latency_ms,0.95) > 350)", v=>v>=1);
+
+await chk('ticket subjects are messy (raw >> normalised)',
+  "SELECT count(DISTINCT subject) FROM support_tickets", v=>v>=50);
+await chk('ticket subjects normalise to ~10 topics',
+  "SELECT count(DISTINCT lower(trim(regexp_replace(subject,'^RE:\\s*','')))) FROM support_tickets", v=>v>=8 && v<=14);
+await chk('tickets still open (NULL closed_ts)',
+  "SELECT count(*) FROM support_tickets WHERE closed_ts IS NULL", v=>v>=20);
+await chk('ORD refs in bodies resolve to real orders',
+  `SELECT count(*) FROM support_tickets t JOIN orders o
+     ON o.order_id = TRY_CAST(nullif(regexp_extract(upper(t.body),'ORD-?([0-9]{6})',1),'') AS INTEGER)`, v=>v>=300);
+await chk('P1 tickets close faster than P3',
+  `SELECT (SELECT avg(date_diff('hour',opened_ts,closed_ts)) FROM support_tickets WHERE priority='P1')
+        < (SELECT avg(date_diff('hour',opened_ts,closed_ts)) FROM support_tickets WHERE priority='P3')`, v=>v===true||v==='true');
+
 console.log(`\ntotal load+check time: ${Date.now() - t0} ms`);
+if (failed) {
+  console.log(`\n${failed} dataset invariant${failed === 1 ? '' : 's'} BROKEN.`);
+  process.exit(1);
+}
