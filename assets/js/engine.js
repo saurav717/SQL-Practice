@@ -11,13 +11,40 @@
 //
 //  The linter below is what keeps you honest about the difference.
 //
-//  TO LOAD DUCKDB FROM A CDN INSTEAD of the vendored 36 MB wasm, replace
-//  VENDOR_BASE with
-//    https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/dist/
-//  -- you lose offline use, and the CDN must stay reachable.
+//  ENGINE SOURCE. The DuckDB wasm binary is ~36 MB on disk. Served from a CDN
+//  it arrives compressed at roughly 8 MB, which is what you want for a hosted
+//  copy; served from the vendored files it works with no network at all, which
+//  is what you want locally. So the source is chosen per environment:
+//
+//    localhost / 127.0.0.1 / file://  ->  vendored  (offline-capable)
+//    anything else (a real host)      ->  jsDelivr  (smaller first load)
+//
+//  Override either way with ?engine=vendor or ?engine=cdn, or by putting
+//  data-engine-source="cdn" on the module <script> tag (the deployed copy on
+//  GitHub Pages does exactly that, so it never looks for files it does not
+//  ship).
 // ===========================================================================
 
 const VENDOR_BASE = 'vendor/duckdb/';
+const CDN_BASE = 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/dist/';
+
+/** 'vendor' | 'cdn' -- where the worker and wasm binary come from. */
+export function resolveEngineSource() {
+  const param = new URLSearchParams(location.search).get('engine');
+  if (param === 'cdn' || param === 'vendor') return param;
+
+  const tagged = document.querySelector('script[data-engine-source]');
+  if (tagged) {
+    const v = tagged.dataset.engineSource;
+    if (v === 'cdn' || v === 'vendor') return v;
+  }
+
+  const h = location.hostname;
+  const isLocal = h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '';
+  return isLocal ? 'vendor' : 'cdn';
+}
+
+export let engineSource = 'vendor';
 
 let db = null, conn = null, duckdb = null;
 export let engineVersion = 'unknown';
@@ -31,15 +58,32 @@ export async function boot(onProgress = () => {}) {
   onProgress('Loading DuckDB engine');
   duckdb = await import(`../../${VENDOR_BASE}duckdb-browser.bundle.mjs`);
 
-  // Absolute URLs: the worker resolves the wasm path against ITS OWN location,
-  // not the document's, so a relative path would look for
-  // vendor/duckdb/vendor/duckdb/duckdb-eh.wasm and 404.
-  const workerUrl = new URL(`${VENDOR_BASE}duckdb-browser-eh.worker.js`, document.baseURI).href;
-  const wasmUrl   = new URL(`${VENDOR_BASE}duckdb-eh.wasm`, document.baseURI).href;
+  engineSource = resolveEngineSource();
+  const base = engineSource === 'cdn'
+    ? CDN_BASE
+    // Absolute URL: the worker resolves the wasm path against ITS OWN location,
+    // not the document's, so a relative path would look for
+    // vendor/duckdb/vendor/duckdb/duckdb-eh.wasm and 404.
+    : new URL(VENDOR_BASE, document.baseURI).href;
 
-  const worker = new Worker(workerUrl);
+  const workerSrc = `${base}duckdb-browser-eh.worker.js`;
+  const wasmUrl   = `${base}duckdb-eh.wasm`;
+
+  // A classic Worker cannot be constructed from a cross-origin URL, so for the
+  // CDN path we wrap it in a same-origin blob that importScripts() the real
+  // one. This is DuckDB's own documented pattern for CDN loading.
+  let worker, blobUrl = null;
+  if (engineSource === 'cdn') {
+    blobUrl = URL.createObjectURL(
+      new Blob([`importScripts(${JSON.stringify(workerSrc)});`], { type: 'text/javascript' }));
+    worker = new Worker(blobUrl);
+  } else {
+    worker = new Worker(workerSrc);
+  }
+
   db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
   await db.instantiate(wasmUrl);
+  if (blobUrl) URL.revokeObjectURL(blobUrl);
   conn = await db.connect();
 
   try {
