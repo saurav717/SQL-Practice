@@ -252,16 +252,43 @@ in `localStorage`. It identifies a browser, not a machine, and the `reset` link
 mints a new one. Anything that claims to read a MAC address from a web page is
 guessing.
 
-**Nothing is transmitted.** This site is static — there is no server to receive
-a log. Entries stay in `localStorage` and leave only when you export them.
-`activity.js` ends with a `drain(send)` function, unused today, which is the
-seam a collector would hook into.
+**The query log is not transmitted.** Entries stay in `localStorage` and leave
+only when you export them. `activity.js` ends with a `drain(send)` function,
+unused today, which is the seam a collector would hook into. The separate visit
+log described below does not touch it — no SQL, no entries, no location.
 
 Recording is on by default and local-only, like the existing progress tracking.
 **Location is off until you turn it on**, and the browser runs its own
 permission prompt on top of that; a fix is cached for 10 minutes so a practice
 session does not re-geolocate on every query. The log keeps the most recent 500
 entries and truncates any single query at 4,000 characters.
+
+### Visit log
+
+Separate from the Activity tab, and server-side: the hosted site reports each
+page load to a small collector, which records the visitor's IP address. The
+code is in `collector/` — a Cloudflare Worker writing to a D1 table, with the
+deploy steps and query recipes in [`collector/README.md`](collector/README.md).
+
+Three things about how it is built:
+
+**The address is read from the connection, not the page.** A browser cannot see
+its own public IP, and any address a client volunteers — in a field, in an
+`X-Forwarded-For` header — is attacker-controlled. The Worker uses
+`CF-Connecting-IP`, set by the edge after the handshake. `assets/js/beacon.js`
+sends only the page path, the referrer, and the browser-local device ID.
+
+**A checkout reports nowhere.** The endpoint lives in
+`<meta name="collector-endpoint">`, empty in this repo. `tools/deploy_pages.sh`
+injects the real one from `$COLLECTOR_ENDPOINT` at deploy time, so
+`npm run serve` and a plain clone never phone anywhere. No visit data is ever
+written back into this repository.
+
+**It is disclosed and it expires.** The boot card tells visitors the log exists;
+the Worker's nightly cron drops rows past `RETENTION_DAYS` (90 by default). An
+IP is personal data in the EU/UK and under several US state laws — logging one
+server-side to operate a site is ordinary, but saying so and not keeping it
+forever is the part that makes it ordinary.
 
 ### Optional: full time-zone support
 
@@ -298,6 +325,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 | `tools/check_claims.mjs` | the traps prompts describe actually occur in the data |
 | `tools/check_dataset.mjs` | 24 dataset invariants (gaps, ties, streaks, overlaps, orphans) |
 | `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hover cards, hints, mobile layout |
+| `tools/check_collector.mjs` | the visit collector logs the edge address (never the payload), enforces its origin allowlist, and prunes on schedule |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,
 `assets/data/schema.sql`, or `tools/gen_seed.mjs`.

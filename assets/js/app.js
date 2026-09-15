@@ -6,6 +6,7 @@
 import * as engine from './engine.js';
 import { EXERCISES, TRACKS, ENGINES, ENGINE_LABELS } from './curriculum.js';
 import * as activity from './activity.js';
+import * as beacon from './beacon.js';
 import * as layout from './layout.js';
 import * as tabletip from './tabletip.js';
 import { PURPOSE, LINKS, parseSchemaSql, tablesFor } from './schema-doc.js';
@@ -961,6 +962,12 @@ function wire() {
 // ---------------------------------------------------------------------------
 (async function main() {
   document.documentElement.dataset.theme = state.theme;
+
+  // Before the engine, not after: the first load pulls ~8 MB and a visitor who
+  // gives up halfway is still a visit. No await -- the collector is never
+  // allowed to delay the page.
+  beacon.ping();
+
   const steps = ['Loading DuckDB engine', 'Checking time-zone support (optional)', 'Creating tables',
                  'Installing dialect compatibility macros', 'Loading seed data (2 MB)', 'Ready'];
 

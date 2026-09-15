@@ -34,6 +34,26 @@ sed 's|<script type="module" src="assets/js/app.js">|<script type="module" data-
 grep -q 'data-engine-source="cdn"' "$DEST/index.html" \
   || { echo "error: failed to pin the deployed copy to the CDN"; exit 1; }
 
+# Point the deployed copy at the visit collector. The endpoint lives in the
+# environment, not in the repo, so a checkout (and `npm run serve`) reports
+# nowhere. Unset here means the same for the deployed copy.
+if [ -n "${COLLECTOR_ENDPOINT:-}" ]; then
+  case "$COLLECTOR_ENDPOINT" in
+    https://*) ;;
+    *) echo "error: COLLECTOR_ENDPOINT must be an https:// URL"; exit 1 ;;
+  esac
+  # -i.bak then remove: the bare -i spelling differs between GNU and BSD sed.
+  # '|' cannot appear in a URL, so it is safe as the delimiter.
+  sed -i.bak "s|<meta name=\"collector-endpoint\" content=\"\">|<meta name=\"collector-endpoint\" content=\"$COLLECTOR_ENDPOINT\">|" \
+      "$DEST/index.html"
+  rm -f "$DEST/index.html.bak"
+  grep -qF "collector-endpoint\" content=\"$COLLECTOR_ENDPOINT" "$DEST/index.html" \
+    || { echo "error: failed to inject the collector endpoint"; exit 1; }
+  echo "collector: $COLLECTOR_ENDPOINT"
+else
+  echo "collector: none set (COLLECTOR_ENDPOINT unset -- visits will not be logged)"
+fi
+
 # Every relative import in the deployed JS must resolve to a file that shipped.
 # A missing module is silent at deploy time and fatal in the browser.
 missing=0
