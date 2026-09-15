@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-skin="studio">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,6 +7,7 @@
 <meta name="description" content="Browser-based SQL practice on a toy warehouse: window frames, rolling aggregation, timestamp patterns, and cross-engine portability.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗃️</text></svg>">
 <link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/skins.css">
 </head>
 <body>
 
@@ -32,6 +33,10 @@
   </div>
 
   <div class="topbar-right">
+    <label class="engine-picker" title="Visual style">
+      <span class="engine-label">Style</span>
+      <select id="skin-select"></select>
+    </label>
     <label class="engine-picker" title="Warn me about SQL that will not run on this engine">
       <span class="engine-label">Target</span>
       <select id="engine-select"></select>

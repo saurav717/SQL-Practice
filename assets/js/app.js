@@ -12,6 +12,19 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 const STORE_KEY = 'sqlpractice.v1';
 const DIFF_LABEL = { 1: 'warm-up', 2: 'core', 3: 'hard', 4: 'interview-grade' };
 
+// Visual styles. `theme` is the palette a skin is drawn for -- picking a skin
+// switches to it. Skins that commit to one palette hide the light/dark toggle
+// (see skins.css); only "studio" and "focus" are drawn for both.
+const SKINS = [
+  { id: 'studio',      label: 'Studio',      theme: 'dark'  },
+  { id: 'ledger',      label: 'Ledger',      theme: 'light' },
+  { id: 'instrument',  label: 'Instrument',  theme: 'dark'  },
+  { id: 'swiss',       label: 'Swiss',       theme: 'light' },
+  { id: 'meditations', label: 'Meditations', theme: 'light' },
+  { id: 'focus',       label: 'Focus',       theme: 'dark'  },
+];
+const skinById = (id) => SKINS.find(s => s.id === id) || SKINS[0];
+
 const state = loadState();
 let schemaCache = null;
 let sandbox = false;
@@ -19,7 +32,7 @@ let sandbox = false;
 function loadState() {
   const base = {
     solved: {}, attempted: {}, revealed: {}, drafts: {},
-    hintsShown: {}, engine: 'redshift', theme: 'dark',
+    hintsShown: {}, engine: 'redshift', theme: 'dark', skin: 'studio',
     current: EXERCISES[0].id,
   };
   try {
@@ -28,6 +41,12 @@ function loadState() {
 }
 function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* private mode */ }
+}
+
+function applyAppearance() {
+  const root = document.documentElement;
+  root.dataset.theme = state.theme;
+  root.dataset.skin  = skinById(state.skin).id;
 }
 
 const exerciseById = (id) => EXERCISES.find(e => e.id === id);
@@ -294,12 +313,16 @@ function renderGrid(result, target = '#tab-results') {
     $(target).innerHTML = '<p class="placeholder">Query ran and returned 0 rows.</p>';
     return;
   }
+  // A numeric column is right-aligned all the way up, header included --
+  // a left-aligned label floating over right-aligned figures reads as two
+  // separate columns.
+  const isNum = columns.map((_, i) => NUMERIC.test(types[i] || ''));
   const head = columns.map((c, i) =>
-    `<th>${esc(c)}<span class="col-type">${esc(types[i] || '')}</span></th>`).join('');
+    `<th${isNum[i] ? ' class="is-num"' : ''}>${esc(c)}<span class="col-type">${esc(types[i] || '')}</span></th>`).join('');
   const body = rows.map(r => '<tr>' + r.map((v, i) => {
-    if (v === null) return '<td class="is-null">NULL</td>';
-    const cls = NUMERIC.test(types[i] || '') ? ' class="is-num"' : '';
-    return `<td${cls}>${esc(v)}</td>`;
+    const cls = (v === null ? 'is-null ' : '') + (isNum[i] ? 'is-num' : '');
+    const attr = cls.trim() ? ` class="${cls.trim()}"` : '';
+    return `<td${attr}>${v === null ? 'NULL' : esc(v)}</td>`;
   }).join('') + '</tr>').join('');
 
   $(target).innerHTML =
@@ -525,7 +548,18 @@ function wire() {
 
   $('#btn-theme').addEventListener('click', () => {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = state.theme;
+    applyAppearance();
+    saveState();
+  });
+
+  const skinSel = $('#skin-select');
+  skinSel.innerHTML = SKINS.map(s =>
+    `<option value="${s.id}"${s.id === state.skin ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
+  skinSel.addEventListener('change', () => {
+    const skin = skinById(skinSel.value);
+    state.skin  = skin.id;
+    state.theme = skin.theme;
+    applyAppearance();
     saveState();
   });
 
@@ -573,7 +607,7 @@ function wire() {
 // Boot
 // ---------------------------------------------------------------------------
 (async function main() {
-  document.documentElement.dataset.theme = state.theme;
+  applyAppearance();
   const steps = ['Loading DuckDB engine', 'Checking time-zone support (optional)', 'Creating tables',
                  'Installing dialect compatibility macros', 'Loading seed data (2 MB)', 'Ready'];
 

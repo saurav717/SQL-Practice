@@ -1,0 +1,524 @@
+/* ==========================================================================
+   SQL Practice -- skins
+   Alternative visual treatments layered over app.css. Each skin is selected
+   with data-skin on <html>; "studio" is the original look and is a no-op.
+
+   Token blocks are written as html[data-skin="..."] (specificity 0,1,1) so
+   they win over the [data-theme="light"] block in app.css (0,1,0).
+   ========================================================================== */
+
+/* ==========================================================================
+   Stoic base -- everything true of every skin except studio.
+   Selector is html:not([data-skin="studio"]) so it costs one attribute and
+   still outranks the plain class rules it is overriding.
+   ========================================================================== */
+
+html:not([data-skin="studio"]) { --radius: 0px; }
+
+html:not([data-skin="studio"]) body { font-variant-numeric: tabular-nums; }
+
+/* No rounded anything. Corners are a decoration. */
+html:not([data-skin="studio"]) .btn,
+html:not([data-skin="studio"]) .btn kbd,
+html:not([data-skin="studio"]) .chip,
+html:not([data-skin="studio"]) .tab,
+html:not([data-skin="studio"]) .badge,
+html:not([data-skin="studio"]) .pill,
+html:not([data-skin="studio"]) .dot,
+html:not([data-skin="studio"]) .verdict,
+html:not([data-skin="studio"]) .verdict pre,
+html:not([data-skin="studio"]) .grid-wrap,
+html:not([data-skin="studio"]) .lint-item,
+html:not([data-skin="studio"]) .dialect-item,
+html:not([data-skin="studio"]) .schema-col,
+html:not([data-skin="studio"]) .prose code,
+html:not([data-skin="studio"]) .prose pre,
+html:not([data-skin="studio"]) .prose blockquote,
+html:not([data-skin="studio"]) .lint-fix code,
+html:not([data-skin="studio"]) .dialect-body code,
+html:not([data-skin="studio"]) #search,
+html:not([data-skin="studio"]) #engine-select,
+html:not([data-skin="studio"]) #skin-select,
+html:not([data-skin="studio"]) .progress-track,
+html:not([data-skin="studio"]) #progress-fill,
+html:not([data-skin="studio"]) .boot-bar,
+html:not([data-skin="studio"]) #boot-bar-fill,
+html:not([data-skin="studio"]) .boot-error { border-radius: 0; }
+
+/* No filled call-to-action. Emphasis comes from weight, not from a colour
+   block that shouts across the whole window. */
+html:not([data-skin="studio"]) .btn-primary,
+html:not([data-skin="studio"]) .btn-accent {
+  background: transparent; color: var(--text); border-color: var(--text); font-weight: 600;
+}
+html:not([data-skin="studio"]) .btn-primary:hover,
+html:not([data-skin="studio"]) .btn-accent:hover {
+  background: var(--text); color: var(--bg); filter: none;
+}
+html:not([data-skin="studio"]) .chip-on {
+  background: transparent; border-color: var(--text); color: var(--text); font-weight: 600;
+}
+
+/* Motion is chrome too. */
+html:not([data-skin="studio"]) .btn { transition: none; }
+html:not([data-skin="studio"]) .btn:active { transform: none; }
+html:not([data-skin="studio"]) #progress-fill,
+html:not([data-skin="studio"]) #boot-bar-fill { transition: none; }
+
+/* Numbers are read by column, not by sentence. */
+html:not([data-skin="studio"]) table.grid td.is-num { font-variant-numeric: tabular-nums; }
+
+
+/* ==========================================================================
+   LEDGER -- paper, hairlines, one ink. Prose is set like a textbook, the
+   result set is set like a printed table: rule above the header, rule below
+   it, rule under the last row, and nothing between rows.
+   ========================================================================== */
+
+html[data-skin="ledger"] {
+  --bg:        #faf9f6;
+  --bg-raise:  #f2f0e9;
+  --bg-sunk:   #f1efe7;
+  --panel:     #faf9f6;
+  --border:    #cec9bb;
+  --border-soft:#e3ded1;
+  --text:      #1b1916;
+  --text-dim:  #494640;
+  --text-mute: #8b857a;
+  --accent:    #1b1916;
+  --accent-dim:#e9e5d9;
+  --good:      #2f5d3f;
+  --good-dim:  #e9eee7;
+  --bad:       #8c2f26;
+  --bad-dim:   #f3e6e3;
+  --warn:      #7a5a12;
+  --warn-dim:  #f1ead7;
+  --kw:        #1b1916;
+  --fn:        #494640;
+  --str:       #2f5d3f;
+  --num:       #8c2f26;
+  --cmt:       #9a9488;
+  --sans: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+}
+
+html[data-skin="ledger"] .topbar { background: var(--bg); border-bottom: 1px solid var(--text); }
+html[data-skin="ledger"] .brand-mark { color: var(--text); }
+html[data-skin="ledger"] .brand-name { font-variant: small-caps; letter-spacing: .04em; }
+/* Progress is a number you can read, not a bar you watch fill. */
+html[data-skin="ledger"] .progress-track { display: none; }
+html[data-skin="ledger"] .progress-label { font: 12px var(--mono); color: var(--text-dim); }
+
+html[data-skin="ledger"] .btn {
+  border: 0; background: transparent; color: var(--text-dim);
+  padding: 6px 0; margin-right: 14px; text-underline-offset: 3px;
+}
+html[data-skin="ledger"] .btn:hover { color: var(--text); text-decoration: underline; background: transparent; }
+html[data-skin="ledger"] .btn-primary,
+html[data-skin="ledger"] .btn-accent { color: var(--text); font-weight: 700; }
+html[data-skin="ledger"] .btn kbd { border: 0; opacity: .55; }
+html[data-skin="ledger"] .toolbar { border-bottom: 1px solid var(--border); padding: 9px 18px; }
+
+html[data-skin="ledger"] .sidebar { background: var(--bg); border-right: 1px solid var(--border); }
+html[data-skin="ledger"] #search { background: transparent; border: 0; border-bottom: 1px solid var(--border); padding-left: 0; }
+html[data-skin="ledger"] .chip { border: 0; padding: 4px 0; margin-right: 14px; flex: none; }
+html[data-skin="ledger"] .ex-item { border-left: 0; padding-left: 12px; }
+html[data-skin="ledger"] .ex-item:hover { background: transparent; text-decoration: underline; text-underline-offset: 3px; }
+html[data-skin="ledger"] .ex-item-on { background: transparent; font-weight: 700; color: var(--text); }
+html[data-skin="ledger"] .ex-state-done { color: var(--text); }
+html[data-skin="ledger"] .track-head { font-family: var(--sans); font-variant: small-caps; text-transform: none; letter-spacing: .03em; font-size: 13px; color: var(--text); }
+
+html[data-skin="ledger"] .prompt-pane { padding: 18px 26px 20px; }
+html[data-skin="ledger"] #ex-title { font-size: 21px; font-weight: 600; }
+html[data-skin="ledger"] .prose { max-width: 68ch; font-size: 15px; line-height: 1.62; color: var(--text); }
+html[data-skin="ledger"] .badge { border: 0; padding: 2px 0 2px 12px; font-family: var(--sans); font-variant: small-caps; letter-spacing: .04em; background: none; }
+
+html[data-skin="ledger"] .tabs { border-bottom: 1px solid var(--border); padding: 0 18px; gap: 20px; }
+html[data-skin="ledger"] .tab { padding: 8px 0; border-bottom: 2px solid transparent; }
+html[data-skin="ledger"] .tab-on { background: transparent; border-bottom-color: var(--text); font-weight: 600; margin-bottom: -1px; }
+html[data-skin="ledger"] .tab-panel { padding: 16px 18px; }
+
+/* the printed table */
+html[data-skin="ledger"] .grid-wrap { border: 0; }
+html[data-skin="ledger"] table.grid { font: 12.5px var(--mono); }
+html[data-skin="ledger"] table.grid th {
+  background: var(--bg); color: var(--text); font-weight: 600;
+  border-top: 1px solid var(--text); border-bottom: 1px solid var(--text);
+  padding: 6px 14px 6px 0;
+}
+html[data-skin="ledger"] table.grid td { border-bottom: 0; padding: 4px 14px 4px 0; }
+html[data-skin="ledger"] table.grid tbody tr:last-child td { border-bottom: 1px solid var(--border); }
+html[data-skin="ledger"] table.grid tbody tr:hover { background: var(--accent-dim); }
+
+html[data-skin="ledger"] .verdict { background: transparent; border: 0; border-left: 2px solid currentColor; padding: 2px 0 2px 12px; }
+html[data-skin="ledger"] .lint-item,
+html[data-skin="ledger"] .dialect-item { background: transparent; border: 0; border-top: 1px solid var(--border-soft); padding: 12px 0; }
+html[data-skin="ledger"] .statusbar { border-top: 1px solid var(--border); }
+html[data-skin="ledger"] #btn-theme { display: none; }   /* paper is paper */
+
+
+/* ==========================================================================
+   INSTRUMENT -- charcoal panel, everything monospace, a single amber that is
+   only ever allowed to mean "this differs". Density is the point.
+   ========================================================================== */
+
+html[data-skin="instrument"] {
+  --bg:        #16181a;
+  --bg-raise:  #1d2023;
+  --bg-sunk:   #111315;
+  --panel:     #131517;
+  --border:    #2b2f33;
+  --border-soft:#232629;
+  --text:      #d9dcda;
+  --text-dim:  #939a97;
+  --text-mute: #5e6563;
+  --accent:    #d7a13b;
+  --accent-dim:#2a2317;
+  --good:      #8fa882;
+  --good-dim:  #1c2119;
+  --bad:       #d7743b;
+  --bad-dim:   #2a1d14;
+  --warn:      #d7a13b;
+  --warn-dim:  #2a2317;
+  --kw:        #d9dcda;
+  --fn:        #939a97;
+  --str:       #8fa882;
+  --num:       #d9dcda;
+  --cmt:       #5e6563;
+  --sans: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+html[data-skin="instrument"] body { font-size: 13px; }
+html[data-skin="instrument"] .topbar { height: 40px; background: var(--panel); border-bottom: 1px solid var(--border); }
+html[data-skin="instrument"] .layout { height: calc(100vh - 40px); }
+html[data-skin="instrument"] .brand-name,
+html[data-skin="instrument"] .tab,
+html[data-skin="instrument"] .chip,
+html[data-skin="instrument"] .crumb,
+html[data-skin="instrument"] .badge,
+html[data-skin="instrument"] .engine-label { text-transform: uppercase; letter-spacing: .09em; font-size: 11px; }
+html[data-skin="instrument"] .btn { padding: 4px 9px; font: 12px var(--mono); }
+html[data-skin="instrument"] .progress-track { height: 3px; background: var(--bg-sunk); }
+html[data-skin="instrument"] #progress-fill { background: var(--text-mute); }
+
+html[data-skin="instrument"] .sidebar { width: 262px; }
+html[data-skin="instrument"] .ex-item { padding: 3px 12px; font: 12px var(--mono); }
+html[data-skin="instrument"] .ex-item-on { border-left-color: var(--accent); }
+html[data-skin="instrument"] .track-head { font: 600 10px var(--mono); letter-spacing: .12em; }
+
+html[data-skin="instrument"] #ex-title { font: 600 15px var(--mono); letter-spacing: -0.01em; }
+html[data-skin="instrument"] .prompt-pane { padding: 10px 14px 12px; }
+html[data-skin="instrument"] .prose { font-size: 13px; line-height: 1.55; }
+
+/* a faint hairline grid under the output, like graph paper on an instrument */
+html[data-skin="instrument"] .tab-body {
+  background-image: linear-gradient(var(--border-soft) 1px, transparent 1px);
+  background-size: 100% 24px;
+  background-position: 0 -1px;
+}
+html[data-skin="instrument"] .tab-panel { background: transparent; padding: 10px 12px; }
+html[data-skin="instrument"] .tabs { padding: 0; border-bottom: 1px solid var(--border); gap: 0; }
+html[data-skin="instrument"] .tab { padding: 7px 13px; border-right: 1px solid var(--border-soft); }
+html[data-skin="instrument"] .tab-on { background: var(--bg-raise); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+
+html[data-skin="instrument"] .grid-wrap { border: 1px solid var(--border); background: var(--bg); }
+html[data-skin="instrument"] table.grid { font-size: 12px; }
+html[data-skin="instrument"] table.grid th {
+  background: var(--bg-raise); text-transform: uppercase; letter-spacing: .07em;
+  font-size: 10.5px; padding: 4px 10px; border-bottom: 1px solid var(--border);
+}
+html[data-skin="instrument"] table.grid td { padding: 3px 10px; border-bottom: 1px solid var(--border-soft); }
+html[data-skin="instrument"] table.grid td.is-null { color: var(--text-mute); font-style: normal; opacity: .65; }
+html[data-skin="instrument"] table.grid tbody tr:hover { background: var(--accent-dim); }
+
+html[data-skin="instrument"] .verdict { border-left-width: 3px; }
+html[data-skin="instrument"] .statusbar { border-top: 1px solid var(--border); background: var(--panel); }
+html[data-skin="instrument"] #btn-theme { display: none; }   /* an instrument has one face */
+
+
+/* ==========================================================================
+   SWISS -- strict grid, one neutral sans, alignment instead of boxes.
+   Black and white with a single red hairline reserved for the live thing.
+   ========================================================================== */
+
+html[data-skin="swiss"] {
+  --bg:        #ffffff;
+  --bg-raise:  #f4f4f4;
+  --bg-sunk:   #f0f0f0;
+  --panel:     #ffffff;
+  --border:    #000000;
+  --border-soft:#d8d8d8;
+  --text:      #000000;
+  --text-dim:  #4d4d4d;
+  --text-mute: #8a8a8a;
+  --accent:    #d0021b;
+  --accent-dim:#fdecee;
+  --good:      #000000;
+  --good-dim:  #f0f0f0;
+  --bad:       #d0021b;
+  --bad-dim:   #fdecee;
+  --warn:      #4d4d4d;
+  --warn-dim:  #f0f0f0;
+  --kw:        #000000;
+  --fn:        #4d4d4d;
+  --str:       #4d4d4d;
+  --num:       #d0021b;
+  --cmt:       #8a8a8a;
+  --sans: "Helvetica Neue", Helvetica, Inter, Arial, sans-serif;
+}
+
+html[data-skin="swiss"] .topbar { border-bottom: 2px solid var(--text); height: 56px; padding: 0 24px; }
+html[data-skin="swiss"] .brand-mark { color: var(--text); }
+html[data-skin="swiss"] .brand-name { text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 700; }
+html[data-skin="swiss"] .progress-track { height: 2px; background: var(--border-soft); }
+html[data-skin="swiss"] #progress-fill { background: var(--text); }
+html[data-skin="swiss"] .progress-label { font: 700 11px var(--sans); letter-spacing: .1em; }
+
+html[data-skin="swiss"] .btn {
+  border: 0; background: transparent; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: .1em; font: 700 10.5px var(--sans);
+  padding: 8px 0; margin-right: 20px;
+}
+html[data-skin="swiss"] .btn:hover { color: var(--text); background: transparent; }
+html[data-skin="swiss"] .btn-primary,
+html[data-skin="swiss"] .btn-accent { color: var(--text); box-shadow: inset 0 -2px 0 var(--text); }
+html[data-skin="swiss"] .btn-primary:hover,
+html[data-skin="swiss"] .btn-accent:hover { background: transparent; color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+html[data-skin="swiss"] .btn kbd { border: 0; letter-spacing: 0; }
+html[data-skin="swiss"] .toolbar { padding: 4px 24px; border-bottom: 1px solid var(--border-soft); }
+
+html[data-skin="swiss"] .engine-label,
+html[data-skin="swiss"] .crumb,
+html[data-skin="swiss"] .track-head,
+html[data-skin="swiss"] .tab,
+html[data-skin="swiss"] .chip,
+html[data-skin="swiss"] .badge,
+html[data-skin="swiss"] .dialect-engine { text-transform: uppercase; letter-spacing: .12em; font-size: 10.5px; font-weight: 700; }
+
+html[data-skin="swiss"] .sidebar { width: 272px; border-right: 1px solid var(--border); }
+html[data-skin="swiss"] .sidebar-head { padding: 16px 24px; }
+html[data-skin="swiss"] #search { border: 0; border-bottom: 2px solid var(--text); background: transparent; padding: 6px 0; }
+html[data-skin="swiss"] .chip { border: 0; padding: 6px 0; margin-right: 16px; flex: none; color: var(--text-mute); }
+html[data-skin="swiss"] .chip-on { color: var(--text); box-shadow: inset 0 -2px 0 var(--text); }
+html[data-skin="swiss"] .ex-item { padding: 5px 24px; border-left: 0; }
+html[data-skin="swiss"] .ex-item:hover { background: var(--bg-raise); }
+html[data-skin="swiss"] .ex-item-on { background: transparent; font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
+html[data-skin="swiss"] .track-head { padding: 22px 24px 6px; color: var(--text); }
+
+html[data-skin="swiss"] .prompt-pane { padding: 22px 24px; }
+html[data-skin="swiss"] #ex-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+html[data-skin="swiss"] .prose { max-width: 62ch; }
+html[data-skin="swiss"] .badge { border: 0; padding: 2px 0 2px 16px; color: var(--text-dim); }
+
+html[data-skin="swiss"] .tabs { padding: 0 24px; gap: 24px; border-bottom: 1px solid var(--border); }
+html[data-skin="swiss"] .tab { padding: 10px 0; }
+html[data-skin="swiss"] .tab-on { background: transparent; color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+html[data-skin="swiss"] .tab-panel { padding: 18px 24px; }
+
+html[data-skin="swiss"] .grid-wrap { border: 0; }
+html[data-skin="swiss"] table.grid th {
+  background: var(--bg); border-bottom: 2px solid var(--text); border-top: 0;
+  text-transform: uppercase; letter-spacing: .09em; font: 700 10.5px var(--sans);
+  padding: 6px 16px 6px 0;
+}
+html[data-skin="swiss"] table.grid td { border-bottom: 1px solid var(--border-soft); padding: 5px 16px 5px 0; }
+html[data-skin="swiss"] .verdict { background: transparent; border: 0; box-shadow: inset 3px 0 0 currentColor; padding-left: 14px; }
+html[data-skin="swiss"] .statusbar { padding: 7px 24px; border-top: 1px solid var(--border); }
+html[data-skin="swiss"] #btn-theme { display: none; }
+
+
+/* ==========================================================================
+   MEDITATIONS -- the literal reading. Parchment and iron gall, a wide
+   measure, and no scorekeeping: the progress bar and the difficulty badge
+   are gone, because the point is the work and not the tally.
+   ========================================================================== */
+
+html[data-skin="meditations"] {
+  --bg:        #f4f1ea;
+  --bg-raise:  #ece9de;
+  --bg-sunk:   #e9e5d9;
+  --panel:     #f1eee6;
+  --border:    #c8c1af;
+  --border-soft:#ded7c6;
+  --text:      #2b2723;
+  --text-dim:  #5a534a;
+  --text-mute: #918a7c;
+  --accent:    #3f4d6b;
+  --accent-dim:#e4e5e9;
+  --good:      #4a5d3a;
+  --good-dim:  #e8eae1;
+  --bad:       #9b3b2f;
+  --bad-dim:   #f0e2de;
+  --warn:      #7d6224;
+  --warn-dim:  #efe8d6;
+  --kw:        #3f4d6b;
+  --fn:        #5a534a;
+  --str:       #4a5d3a;
+  --num:       #9b3b2f;
+  --cmt:       #a09889;
+  --sans: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+}
+
+/* no tally */
+html[data-skin="meditations"] .progress-block,
+html[data-skin="meditations"] #ex-diff,
+html[data-skin="meditations"] .ex-diff { display: none; }
+
+html[data-skin="meditations"] .topbar { background: var(--bg); border-bottom: 1px solid var(--border); height: 58px; padding: 0 22px; }
+html[data-skin="meditations"] .brand-mark { color: var(--text-mute); }
+html[data-skin="meditations"] .brand-name { font-style: italic; font-weight: 400; letter-spacing: .01em; }
+
+html[data-skin="meditations"] .btn { border: 0; background: transparent; color: var(--text-dim); padding: 6px 0; margin-right: 18px; font-size: 14px; }
+html[data-skin="meditations"] .btn:hover { color: var(--text); background: transparent; text-decoration: underline; text-underline-offset: 4px; }
+html[data-skin="meditations"] .btn-primary,
+html[data-skin="meditations"] .btn-accent { color: var(--text); font-weight: 700; }
+html[data-skin="meditations"] .btn kbd { border: 0; opacity: .5; }
+html[data-skin="meditations"] .toolbar { padding: 10px 28px; border-bottom: 1px solid var(--border-soft); }
+
+html[data-skin="meditations"] .sidebar { background: var(--panel); border-right: 1px solid var(--border); }
+html[data-skin="meditations"] #search { background: transparent; border: 0; border-bottom: 1px solid var(--border); padding-left: 0; font-size: 14px; }
+html[data-skin="meditations"] .chip { border: 0; padding: 4px 0; margin-right: 16px; flex: none; font-size: 13px; }
+html[data-skin="meditations"] .ex-item { border-left: 0; padding: 5px 16px; font-size: 14px; }
+html[data-skin="meditations"] .ex-item:hover { background: transparent; color: var(--text); }
+html[data-skin="meditations"] .ex-item-on { background: transparent; font-style: italic; color: var(--text); }
+html[data-skin="meditations"] .track-head { text-transform: none; font: italic 400 13px var(--sans); letter-spacing: 0; color: var(--text-mute); padding: 18px 16px 4px; }
+
+html[data-skin="meditations"] .prompt-pane { padding: 26px 34px; }
+html[data-skin="meditations"] #ex-title { font-size: 22px; font-weight: 400; }
+html[data-skin="meditations"] .prose { max-width: 66ch; font-size: 15.5px; line-height: 1.7; color: var(--text); }
+html[data-skin="meditations"] .prose blockquote { background: transparent; border-left: 2px solid var(--border); font-style: italic; }
+html[data-skin="meditations"] .badge { border: 0; background: none; padding: 2px 0 2px 14px; font-style: italic; color: var(--text-mute); }
+
+html[data-skin="meditations"] .tabs { padding: 0 28px; gap: 22px; border-bottom: 1px solid var(--border); }
+html[data-skin="meditations"] .tab { padding: 9px 0; font-size: 14px; }
+html[data-skin="meditations"] .tab-on { background: transparent; box-shadow: inset 0 -1px 0 var(--text); }
+html[data-skin="meditations"] .tab-panel { padding: 18px 28px; }
+
+html[data-skin="meditations"] .grid-wrap { border: 0; }
+html[data-skin="meditations"] table.grid th {
+  background: var(--bg); border-top: 1px solid var(--text-mute); border-bottom: 1px solid var(--text-mute);
+  font: 400 11px var(--sans); text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim);
+  padding: 6px 16px 6px 0;
+}
+html[data-skin="meditations"] table.grid td { border-bottom: 0; padding: 4px 16px 4px 0; }
+html[data-skin="meditations"] table.grid tbody tr:last-child td { border-bottom: 1px solid var(--border); }
+html[data-skin="meditations"] .verdict { background: transparent; border: 0; border-left: 1px solid currentColor; padding: 2px 0 2px 14px; font-style: italic; }
+html[data-skin="meditations"] .verdict h3 { font-weight: 400; }
+html[data-skin="meditations"] .lint-item,
+html[data-skin="meditations"] .dialect-item { background: transparent; border: 0; border-top: 1px solid var(--border-soft); padding: 12px 0; }
+html[data-skin="meditations"] .statusbar { border-top: 1px solid var(--border); font-family: var(--mono); }
+html[data-skin="meditations"] #btn-theme { display: none; }
+
+
+/* ==========================================================================
+   FOCUS -- one surface. The exercise list is parked off-canvas with a sliver
+   showing; hover the left edge to bring it back. The query sits in a reading
+   measure in the middle of the page with the result directly beneath it.
+   This is the only skin that keeps the light/dark toggle.
+   ========================================================================== */
+
+html[data-skin="focus"] {
+  --bg:        #101012;
+  --bg-raise:  #17171a;
+  --bg-sunk:   #0c0c0e;
+  --panel:     #101012;
+  --border:    #26262b;
+  --border-soft:#1c1c20;
+  --text:      #e4e4e6;
+  --text-dim:  #8f8f96;
+  --text-mute: #5c5c63;
+  --accent:    #e4e4e6;
+  --accent-dim:#26262b;
+  --good:      #7f9c84;
+  --good-dim:  #17201a;
+  --bad:       #b86a5c;
+  --bad-dim:   #221614;
+  --warn:      #a8916a;
+  --warn-dim:  #201c14;
+  --kw:        #e4e4e6;
+  --fn:        #8f8f96;
+  --str:       #7f9c84;
+  --num:       #8f8f96;
+  --cmt:       #5c5c63;
+}
+html[data-skin="focus"][data-theme="light"] {
+  --bg:        #fcfcfb;
+  --bg-raise:  #f3f3f1;
+  --bg-sunk:   #eeeeec;
+  --panel:     #fcfcfb;
+  --border:    #dededa;
+  --border-soft:#eaeae6;
+  --text:      #17171a;
+  --text-dim:  #61616a;
+  --text-mute: #93939b;
+  --accent:    #17171a;
+  --accent-dim:#eaeae6;
+  --good:      #3e6b4c;
+  --good-dim:  #e7efe9;
+  --bad:       #9b4a3c;
+  --bad-dim:   #f4e6e3;
+  --warn:      #7a6428;
+  --warn-dim:  #f1ecdd;
+  --kw:        #17171a;
+  --fn:        #61616a;
+  --str:       #3e6b4c;
+  --num:       #61616a;
+  --cmt:       #93939b;
+}
+
+html[data-skin="focus"] .topbar { background: transparent; border-bottom: 0; height: 46px; }
+html[data-skin="focus"] .topbar > * { opacity: .5; transition: opacity .14s; }
+html[data-skin="focus"] .topbar:hover > * { opacity: 1; }
+html[data-skin="focus"] .layout { height: calc(100vh - 46px); }
+html[data-skin="focus"] .progress-track { display: none; }
+
+/* the list parks itself -- desktop only; below 1000px app.css already
+   turns the sidebar into a band at the top of the flow. */
+@media (min-width: 1001px) {
+  html[data-skin="focus"] .sidebar {
+    position: fixed; top: 46px; bottom: 0; left: 0; z-index: 20;
+    width: 284px; background: var(--bg-raise); border-right: 1px solid var(--border);
+    transform: translateX(calc(-100% + 7px));
+    transition: transform .14s ease;
+  }
+  html[data-skin="focus"] .sidebar:hover,
+  html[data-skin="focus"] .sidebar:focus-within { transform: translateX(0); }
+  html[data-skin="focus"] .sidebar::after {
+    content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 7px;
+    background: var(--border);
+  }
+  html[data-skin="focus"] .sidebar:hover::after,
+  html[data-skin="focus"] .sidebar:focus-within::after { background: transparent; }
+}
+
+/* one column, one measure, no panel seams */
+html[data-skin="focus"] .workspace {
+  background: var(--bg); gap: 0; margin: 0 auto; max-width: 860px;
+  padding: 0 20px; overflow-y: auto;
+  grid-template-rows: auto auto minmax(180px, 1fr);
+}
+@media (min-width: 1001px) { html[data-skin="focus"] .workspace { padding: 0 32px; } }
+html[data-skin="focus"] .pane { background: transparent; }
+html[data-skin="focus"] .prompt-pane { padding: 34px 0 20px; max-height: none; }
+html[data-skin="focus"] #ex-title { font-size: 20px; font-weight: 600; }
+html[data-skin="focus"] .prose { color: var(--text-dim); line-height: 1.65; }
+html[data-skin="focus"] .badge { border: 0; background: none; color: var(--text-mute); padding: 2px 0 2px 12px; }
+
+html[data-skin="focus"] .toolbar { padding: 0 0 10px; border-bottom: 0; }
+html[data-skin="focus"] .btn { border: 0; background: transparent; color: var(--text-mute); padding: 5px 0; margin-right: 18px; }
+html[data-skin="focus"] .btn:hover { color: var(--text); background: transparent; }
+html[data-skin="focus"] .btn-primary,
+html[data-skin="focus"] .btn-accent { color: var(--text); }
+html[data-skin="focus"] .btn kbd { border: 0; opacity: .5; }
+html[data-skin="focus"] .editor-wrap { height: 250px; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+html[data-skin="focus"] .editor-layer { padding: 16px 0; font-size: 13.5px; line-height: 1.75; }
+html[data-skin="focus"] #editor-highlight { background: transparent; }
+
+html[data-skin="focus"] .tabs { border-bottom: 0; padding: 14px 0 0; gap: 18px; }
+html[data-skin="focus"] .tab { padding: 6px 0; color: var(--text-mute); }
+html[data-skin="focus"] .tab-on { background: transparent; color: var(--text); }
+html[data-skin="focus"] .tab-panel { padding: 10px 0 28px; }
+html[data-skin="focus"] .grid-wrap { border: 0; }
+html[data-skin="focus"] table.grid th { background: var(--bg); border-bottom: 1px solid var(--border); padding: 5px 14px 5px 0; }
+html[data-skin="focus"] table.grid td { border-bottom: 0; padding: 4px 14px 4px 0; }
+html[data-skin="focus"] .verdict { background: transparent; border: 0; box-shadow: inset 2px 0 0 currentColor; padding-left: 12px; }
+html[data-skin="focus"] .statusbar { border-top: 1px solid var(--border-soft); padding: 6px 0; }

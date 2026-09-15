@@ -389,4 +389,12 @@ body.sandbox .workspace { grid-template-rows: auto minmax(180px, 1fr); }
   .brand-name, .engine-label { display: none; }
   .topbar { gap: 8px; padding: 0 8px; }
   .btn kbd { display: none; }
+  /* Two selects plus three buttons do not fit a phone at their intrinsic
+     widths. Let the row shrink rather than push the page sideways. */
+  .topbar-right { min-width: 0; flex: 1; gap: 6px; }
+  .engine-picker { min-width: 0; }
+  #engine-select, #skin-select { min-width: 0; max-width: 88px; padding: 5px 4px; }
 }
+
+/* A numeric column is right-aligned all the way up, header included. */
+table.grid th.is-num { text-align: right; }
