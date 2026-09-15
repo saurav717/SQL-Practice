@@ -160,7 +160,8 @@ declarations are informational metadata only.
 | Check the answer | `⌘/Ctrl + Shift + Enter` |
 | Comment / uncomment the selected lines | `⌘/Ctrl + /` |
 | Indent | `Tab` |
-| Jump to next unsolved | `Alt + →` |
+| Next exercise | `⌘/Ctrl + Alt + ↓` |
+| Previous exercise | `⌘/Ctrl + Alt + ↑` |
 
 **Run acts on one statement**, the way a Snowflake worksheet does: the one the
 cursor is sitting in. Keep scratch work above your answer, separated by `;`, and
@@ -172,6 +173,12 @@ editor top to bottom, stopping at the first error.
 
 Statement boundaries are found by lexing, not by splitting on `;` — a semicolon
 inside a string, a quoted identifier, a comment or a `$$` body is just text.
+
+Exercise navigation is `⌘⌥↑`/`⌘⌥↓`, vertical like the sidebar it walks. It is
+deliberately not `⌥←`/`⌥→`: those move the caret one word at a time in the
+editor on macOS, and a page-level shortcut on them makes the editor unusable.
+After a correct answer, the Feedback tab also offers the next unsolved
+exercise as a button.
 
 `⌘/` comments the selected lines with `--`, and uncomments them when they are
 all already commented. The marker goes at the block's shallowest indent, so the
