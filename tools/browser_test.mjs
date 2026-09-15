@@ -162,7 +162,193 @@ await page.click('#act-clear');
 await page.waitForSelector('.act-table', { state: 'detached', timeout: 5000 });
 console.log('cleared    :', (await page.locator('#activity-count').isHidden()) ? 'badge hidden' : 'BADGE STILL SHOWN');
 
-// --- 9. responsive --------------------------------------------------------
+// --- 9. draggable splitters ----------------------------------------------
+const rect = (sel) => page.evaluate(
+  (q) => { const r = document.querySelector(q).getBoundingClientRect(); return { w: r.width, h: r.height }; }, sel);
+
+/** Drag a splitter by (dx, dy) from its middle. */
+async function dragBy(sel, dx, dy) {
+  const b = await page.locator(sel).boundingBox();
+  const x = b.x + b.width / 2, y = b.y + b.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y + dy, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(80);
+}
+const near = (got, want, slack = 3) => Math.abs(got - want) <= slack;
+
+const sideBefore = (await rect('.sidebar')).w;
+await dragBy('#split-sidebar', 130, 0);
+const sideAfter = (await rect('.sidebar')).w;
+console.log('sidebar    :', `${sideBefore}px -> ${sideAfter}px (dragged +130)`);
+if (!near(sideAfter, sideBefore + 130)) errors.push(`sidebar did not follow the drag: ${sideBefore} -> ${sideAfter}`);
+
+// Dragging past the minimum must stop at it, not collapse or invert the pane.
+await dragBy('#split-sidebar', -900, 0);
+const sideMin = (await rect('.sidebar')).w;
+console.log('min clamp  :', `${sideMin}px after dragging 900px left`);
+if (sideMin < 150 || sideMin > 230) errors.push(`sidebar min clamp is wrong: ${sideMin}`);
+await dragBy('#split-sidebar', 96, 0);
+
+// The lower pane: dragging the seam up grows the results panel.
+const outBefore = (await rect('.output-pane')).h;
+const edBefore  = (await rect('.editor-pane')).h;
+await dragBy('#split-editor', 0, -90);
+const outAfter = (await rect('.output-pane')).h;
+const edAfter  = (await rect('.editor-pane')).h;
+console.log('output pane:', `${outBefore}px -> ${outAfter}px, editor ${edBefore}px -> ${edAfter}px`);
+if (!near(outAfter, outBefore + 90)) errors.push(`output pane did not grow: ${outBefore} -> ${outAfter}`);
+if (!near(edAfter, edBefore - 90)) errors.push(`editor pane did not shrink: ${edBefore} -> ${edAfter}`);
+
+// Until its seam is dragged, the prompt pane sizes itself to the exercise text.
+const promptFit = () => page.evaluate(() => {
+  const p = document.querySelector('.prompt-pane');
+  return { shown: Math.round(p.clientHeight), text: Math.round(p.scrollHeight),
+           cap: Math.round(window.innerHeight * 0.42) };
+});
+const fits = (f) => f.text <= f.shown + 2 || f.shown >= f.cap - 2;
+await page.locator('.ex-item').nth(12).click();
+await page.waitForTimeout(120);
+const fitA = await promptFit();
+console.log('auto-fit   :', JSON.stringify(fitA));
+if (!fits(fitA)) errors.push(`prompt pane does not fit its text: ${JSON.stringify(fitA)}`);
+
+// The prompt seam, and the editor growing with its pane.
+const promptBefore = (await rect('.prompt-pane')).h;
+const wrapBefore   = (await rect('.editor-wrap')).h;
+await dragBy('#split-prompt', 0, 60);
+const promptAfter = (await rect('.prompt-pane')).h;
+console.log('prompt pane:', `${promptBefore}px -> ${promptAfter}px (dragged +60)`);
+if (!near(promptAfter, promptBefore + 60)) errors.push(`prompt pane did not follow the drag: ${promptBefore} -> ${promptAfter}`);
+
+// Once dragged, it stays put -- auto-fit must not overrule the user.
+await page.locator('.ex-item').nth(3).click();
+await page.waitForTimeout(120);
+const promptHeld = (await rect('.prompt-pane')).h;
+console.log('stays put  :', `${promptHeld}px after switching exercise`);
+if (!near(promptHeld, promptAfter)) errors.push(`auto-fit overruled a dragged prompt pane: ${promptAfter} -> ${promptHeld}`);
+
+// Double-click resets one seam -- for the prompt, back to following its text.
+await page.locator('#split-prompt').dblclick();
+await page.waitForTimeout(80);
+const fitB = await promptFit();
+console.log('dbl-click  :', `prompt back to ${fitB.shown}px, text ${fitB.text}px`);
+if (!fits(fitB)) errors.push(`double-click did not restore auto-fit: ${JSON.stringify(fitB)}`);
+
+// A focused splitter answers the arrow keys.
+const keyBefore = (await rect('.output-pane')).h;
+await page.locator('#split-editor').focus();
+await page.keyboard.press('ArrowUp');
+const keyAfter = (await rect('.output-pane')).h;
+console.log('arrow keys :', `${keyBefore}px -> ${keyAfter}px`);
+if (keyAfter <= keyBefore) errors.push('ArrowUp on the results splitter did not resize it');
+
+// Sizes must survive a reload -- a layout you have to re-drag is not a layout.
+const wantSide = (await rect('.sidebar')).w;
+const wantOut  = (await rect('.output-pane')).h;
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForSelector('#topbar:not([hidden])', { timeout: 90000 });
+const gotSide = (await rect('.sidebar')).w;
+const gotOut  = (await rect('.output-pane')).h;
+console.log('persisted  :', `sidebar ${gotSide}px, output ${gotOut}px`);
+if (!near(gotSide, wantSide)) errors.push(`sidebar width lost on reload: ${wantSide} -> ${gotSide}`);
+if (!near(gotOut, wantOut, 6)) errors.push(`output height lost on reload: ${wantOut} -> ${gotOut}`);
+if (wrapBefore <= 0) errors.push('editor-wrap has no height');
+
+// Sandbox drops the prompt pane, so the remaining panes have to re-share the
+// room rather than leave a gap behind.
+await page.click('#btn-sandbox');
+await page.waitForTimeout(120);
+const sandboxHidden = await page.locator('#split-prompt').isHidden();
+const sandboxOut = (await rect('.output-pane')).h;
+console.log('sandbox    :', `prompt seam ${sandboxHidden ? 'hidden' : 'STILL SHOWN'}, output ${sandboxOut}px`);
+if (!sandboxHidden) errors.push('the prompt splitter is still visible in Sandbox mode');
+if (sandboxOut < 100) errors.push(`output pane collapsed in Sandbox mode: ${sandboxOut}`);
+await page.click('#btn-sandbox');
+await page.waitForTimeout(120);
+
+// --- 10. comment toggle (Cmd/Ctrl + /) -----------------------------------
+await page.fill('#editor', 'SELECT 1\n  SELECT 2');
+await page.click('#editor');
+await page.keyboard.press('Control+a');
+await page.keyboard.press('Control+Slash');
+const commented = await page.inputValue('#editor');
+console.log('comment    :', JSON.stringify(commented));
+if (commented !== '-- SELECT 1\n--   SELECT 2') errors.push('Ctrl+/ did not comment the block: ' + JSON.stringify(commented));
+await page.keyboard.press('Control+Slash');
+const uncommented = await page.inputValue('#editor');
+console.log('uncomment  :', JSON.stringify(uncommented));
+if (uncommented !== 'SELECT 1\n  SELECT 2') errors.push('Ctrl+/ did not uncomment: ' + JSON.stringify(uncommented));
+
+// One line, no selection: the caret's line only.
+await page.fill('#editor', 'SELECT 1\nSELECT 2');
+await page.evaluate(() => {
+  const e = document.querySelector('#editor');
+  e.focus(); e.setSelectionRange(2, 2);
+});
+await page.keyboard.press('Control+Slash');
+const oneLine = await page.inputValue('#editor');
+console.log('one line   :', JSON.stringify(oneLine));
+if (oneLine !== '-- SELECT 1\nSELECT 2') errors.push('Ctrl+/ on a caret did not comment just that line: ' + JSON.stringify(oneLine));
+
+// --- 11. run the statement at the cursor ---------------------------------
+const script = 'SELECT 111 AS a;\n\nSELECT 222 AS b;\n';
+const caretTo = (pos) => page.evaluate((p) => {
+  const e = document.querySelector('#editor');
+  e.focus(); e.setSelectionRange(p, p);
+  document.dispatchEvent(new Event('selectionchange'));
+}, pos);
+const firstCell = () => page.locator('table.grid tbody tr td').first().innerText();
+
+await page.fill('#editor', script);
+await caretTo(4);                                     // inside statement 1
+await page.waitForTimeout(60);
+console.log('indicator  :', await page.textContent('#stmt-indicator'));
+if (!(await page.locator('.stmt-active').count())) errors.push('the statement at the cursor is not marked in the editor');
+await page.click('#btn-run');
+await page.waitForSelector('table.grid', { timeout: 30000 });
+console.log('stmt 1     :', await firstCell(), '|', await page.textContent('#status-right'));
+if ((await firstCell()).trim() !== '111') errors.push('Run did not run the statement at the cursor (expected 111)');
+
+await caretTo(script.indexOf('SELECT 222') + 3);      // inside statement 2
+await page.click('#btn-run');
+await page.waitForFunction(() => document.querySelector('table.grid tbody td')?.innerText.trim() === '222', null, { timeout: 30000 });
+console.log('stmt 2     :', await firstCell(), '|', await page.textContent('#status-right'));
+
+// A selection wins over the cursor's statement, as in a worksheet.
+await page.evaluate(() => {
+  const e = document.querySelector('#editor');
+  const a = e.value.indexOf('SELECT 111');
+  e.focus(); e.setSelectionRange(a, a + 'SELECT 111 AS a'.length);
+});
+await page.click('#btn-run');
+await page.waitForFunction(() => document.querySelector('table.grid tbody td')?.innerText.trim() === '111', null, { timeout: 30000 });
+console.log('selection  :', await firstCell(), '|', await page.textContent('#status-right'));
+
+// Run all walks the whole script and reports on it.
+await caretTo(0);
+await page.click('#btn-run-all');
+await page.waitForFunction(() => /Ran 2 statements/.test(document.querySelector('#status-left').textContent), null, { timeout: 30000 });
+console.log('run all    :', await page.textContent('#status-left'), '|', await page.textContent('#status-right'));
+if ((await firstCell()).trim() !== '222') errors.push('Run all did not leave the last statement on screen');
+
+// Grading uses the same target, so scratch work above an answer is ignored.
+await page.locator('.ex-item').first().click();   // back to the LEFT JOIN drill
+await page.fill('#editor', 'SELECT 1 AS scratch;\n\n' + solution);
+await caretTo(30);
+await page.click('#btn-check');
+await page.waitForSelector('.verdict-good', { timeout: 30000 });
+console.log('check stmt :', (await page.textContent('.verdict-good')).replace(/\s+/g, ' ').slice(0, 60));
+
+// Leave no recorded positions behind for the screenshots below.
+await page.click('[data-tab="activity"]');
+await page.waitForSelector('#act-clear', { timeout: 5000 });
+page.once('dialog', d => d.accept());
+await page.click('#act-clear');
+await page.click('[data-tab="results"]');
+
+// --- 12. responsive -------------------------------------------------------
 await page.setViewportSize({ width: 390, height: 780 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
