@@ -284,11 +284,15 @@ injects the real one from `$COLLECTOR_ENDPOINT` at deploy time, so
 `npm run serve` and a plain clone never phone anywhere. No visit data is ever
 written back into this repository.
 
-**It is disclosed and it expires.** The boot card tells visitors the log exists;
-the Worker's nightly cron drops rows past `RETENTION_DAYS` (90 by default). An
-IP is personal data in the EU/UK and under several US state laws — logging one
-server-side to operate a site is ordinary, but saying so and not keeping it
-forever is the part that makes it ordinary.
+**The disclosure rides with the endpoint.** `deploy_pages.sh` adds the boot-card
+sentence about IP logging in the same branch that injects the endpoint, and
+fails the deploy if it cannot. So a build that reports nowhere never claims to
+be logging, a build that does never stays quiet about it, and the stated
+retention always matches `$RETENTION_DAYS`. The Worker's nightly cron drops
+rows past that window (90 days by default). An IP is personal data in the EU/UK
+and under several US state laws — logging one server-side to operate a site is
+ordinary, but saying so and not keeping it forever is the part that makes it
+ordinary.
 
 ### Optional: full time-zone support
 

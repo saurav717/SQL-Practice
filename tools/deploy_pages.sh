@@ -49,7 +49,19 @@ if [ -n "${COLLECTOR_ENDPOINT:-}" ]; then
   rm -f "$DEST/index.html.bak"
   grep -qF "collector-endpoint\" content=\"$COLLECTOR_ENDPOINT" "$DEST/index.html" \
     || { echo "error: failed to inject the collector endpoint"; exit 1; }
-  echo "collector: $COLLECTOR_ENDPOINT"
+
+  # The disclosure rides with the endpoint, and only with it. A build that
+  # reports nowhere must not tell visitors it is logging them, and a build that
+  # does must not stay quiet about it -- so the sentence is added here rather
+  # than sitting in index.html being wrong half the time.
+  retention="${RETENTION_DAYS:-90}"
+  sed -i.bak "s|Your queries run here and stay here\.|Your queries run here and stay here; the site records each visit\&#39;s IP address in a private access log, kept ${retention} days.|" \
+      "$DEST/index.html"
+  rm -f "$DEST/index.html.bak"
+  grep -qF "records each visit&#39;s IP address" "$DEST/index.html" \
+    || { echo "error: endpoint injected but the disclosure did not apply -- refusing to ship silent logging"; exit 1; }
+
+  echo "collector: $COLLECTOR_ENDPOINT (disclosed in the boot card, ${retention}-day retention)"
 else
   echo "collector: none set (COLLECTOR_ENDPOINT unset -- visits will not be logged)"
 fi
