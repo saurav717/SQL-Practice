@@ -8,8 +8,8 @@ compatibility_date = "2025-09-01"
 ALLOWED_ORIGINS = "https://saurav717.github.io"
 RETENTION_DAYS = "90"
 
-# Created with:  wrangler d1 create sql-practice-visits
-# Paste the database_id the command prints.
+# collector/setup.sh creates the database and writes its id in here. Doing it
+# by hand instead:  wrangler d1 create sql-practice-visits, then paste the id.
 [[d1_databases]]
 binding = "DB"
 database_name = "sql-practice-visits"
