@@ -190,6 +190,31 @@ the rows were right.
 **Sandbox** (top bar) gives you a free-form editor where `INSERT`/`UPDATE`/`DDL`
 are allowed. **Reset data** reloads the dataset from scratch.
 
+### Which tables, and what is in them
+
+Every exercise carries a **Tables** strip under its title naming the tables the
+question is about, and every table name inside the prompt text and the hints is
+a trigger too. Hover one — or focus it and press `Enter`, or tap it on a touch
+screen — and a card opens with:
+
+* one line on what the table is for and where its trap is,
+* every column with its type, `PK` and `null` markers,
+* the join key each foreign column points at (`customer_id → customers.customer_id`),
+* the note from `schema.sql`, where that column has one.
+
+`Esc` closes the card; clicking pins it open so you can read down a long column
+list. Which tables an exercise uses is *derived* — from the identifiers its
+prompt marks as code and the ones its reference solution names — so it can
+never go stale against the exercise.
+
+The card's content comes from three places, deliberately kept apart
+(`assets/js/schema-doc.js` explains why): column names, types and row counts are
+read from the live database, the per-column notes are parsed out of
+`assets/data/schema.sql`, and the one-line table purposes are prose in
+`schema-doc.js`. `tools/check_schema_notes.mjs` fails the build if the three
+stop agreeing — a card naming a column the warehouse does not have is worse than
+no card at all.
+
 ### Resizing the panes
 
 Every seam is a drag handle: the one between the exercise list and the
@@ -254,7 +279,7 @@ factual claim a prompt makes is asserted against the data.
 
 ```bash
 npm install          # @duckdb/node-api, playwright, esbuild (dev only)
-npm run check        # regenerate seed, run all four check suites
+npm run check        # regenerate seed, run every check suite
 npm run check:browser  # end-to-end: boots the real page in Chromium
 ```
 
@@ -262,9 +287,10 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 |---|---|
 | `tools/check_exercises.mjs` | all 61 solutions parse, run, and return rows |
 | `tools/check_order.mjs` | the grader's `CAST(... AS VARCHAR)` wrapper preserves `ORDER BY` (56/56) |
+| `tools/check_schema_notes.mjs` | the hover cards' tables, columns and join keys all exist in the database |
 | `tools/check_claims.mjs` | the traps prompts describe actually occur in the data |
 | `tools/check_dataset.mjs` | 24 dataset invariants (gaps, ties, streaks, overlaps, orphans) |
-| `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hints, mobile layout |
+| `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hover cards, hints, mobile layout |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,
 `assets/data/schema.sql`, or `tools/gen_seed.mjs`.
@@ -289,6 +315,11 @@ Append an object to `EXERCISES` in `assets/js/curriculum.js`:
 Then `npm run check`. A solution that errors or returns zero rows fails the
 build, because a broken reference silently breaks grading.
 
+The **Tables** strip needs no field: it is derived from the backticked
+identifiers in `prompt` and the table names in `solution`. Add `tables: ['...']`
+only to put a table first, or to name one the exercise talks about without
+querying.
+
 ## Layout
 
 ```
@@ -299,6 +330,8 @@ assets/js/curriculum.js       all 61 exercises + tracks + dialect notes
 assets/js/app.js              UI: editor, highlighting, grid, progress
 assets/js/activity.js         activity log: device ID, opt-in location, export
 assets/js/layout.js           draggable pane splitters (sizes persist per browser)
+assets/js/schema-doc.js       table purposes, schema.sql note parser, join keys
+assets/js/tabletip.js         the table hover card (chips, prompt triggers, positioning)
 assets/data/schema.sql        20 annotated tables
 assets/data/seed.sql          generated, deterministic (2.2 MB)
 assets/data/compat.sql        Snowflake/Redshift function shims
