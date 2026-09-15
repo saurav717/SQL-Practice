@@ -172,6 +172,36 @@ the rows were right.
 **Sandbox** (top bar) gives you a free-form editor where `INSERT`/`UPDATE`/`DDL`
 are allowed. **Reset data** reloads the dataset from scratch.
 
+### Activity log
+
+The **Activity** tab keeps a record of every query that *ran successfully* —
+the SQL, the exercise, the row count, the elapsed time, the grading verdict for
+a Check, a stable device ID, and optionally your location. Export it as JSON or
+CSV, or clear it.
+
+Two limits are worth stating plainly, because they shape what this can be:
+
+**There is no MAC address.** No browser exposes the network adapter's hardware
+address to JavaScript — a globally unique, non-resettable hardware identifier is
+exactly the kind of supercookie the platform withholds, and there is no
+permission that unlocks it. (The old WebRTC ICE-candidate trick only ever leaked
+a local *IP*, and browsers now mDNS-obfuscate that too.) The log therefore
+carries a **device ID**: a random UUID minted once per browser profile and kept
+in `localStorage`. It identifies a browser, not a machine, and the `reset` link
+mints a new one. Anything that claims to read a MAC address from a web page is
+guessing.
+
+**Nothing is transmitted.** This site is static — there is no server to receive
+a log. Entries stay in `localStorage` and leave only when you export them.
+`activity.js` ends with a `drain(send)` function, unused today, which is the
+seam a collector would hook into.
+
+Recording is on by default and local-only, like the existing progress tracking.
+**Location is off until you turn it on**, and the browser runs its own
+permission prompt on top of that; a fix is cached for 10 minutes so a practice
+session does not re-geolocate on every query. The log keeps the most recent 500
+entries and truncates any single query at 4,000 characters.
+
 ### Optional: full time-zone support
 
 DuckDB keeps the IANA time-zone database in its ICU extension, which the wasm
@@ -238,6 +268,7 @@ assets/css/app.css            dark/light theme
 assets/js/engine.js           DuckDB boot, execution, grading, portability linter
 assets/js/curriculum.js       all 61 exercises + tracks + dialect notes
 assets/js/app.js              UI: editor, highlighting, grid, progress
+assets/js/activity.js         activity log: device ID, opt-in location, export
 assets/data/schema.sql        20 annotated tables
 assets/data/seed.sql          generated, deterministic (2.2 MB)
 assets/data/compat.sql        Snowflake/Redshift function shims
