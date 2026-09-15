@@ -18,9 +18,10 @@ rm -rf "$DEST"
 mkdir -p "$DEST/assets/css" "$DEST/assets/js" "$DEST/assets/data" "$DEST/engine/duckdb"
 
 cp "$SRC/assets/css/app.css"                        "$DEST/assets/css/"
-cp "$SRC/assets/js/app.js"                          "$DEST/assets/js/"
-cp "$SRC/assets/js/engine.js"                       "$DEST/assets/js/"
-cp "$SRC/assets/js/curriculum.js"                   "$DEST/assets/js/"
+# Every module, not a hand-kept list: app.js imports its siblings, so one
+# missed file 404s the module graph and the page never boots. The guard below
+# checks that what got copied actually satisfies every import.
+cp "$SRC/assets/js/"*.js                            "$DEST/assets/js/"
 cp "$SRC/assets/data/"*.sql                         "$DEST/assets/data/"
 cp "$SRC/engine/duckdb/duckdb-browser.bundle.mjs"   "$DEST/engine/duckdb/"
 # .txt, not .md: Jekyll processes Markdown, and this is a Jekyll site.
@@ -32,6 +33,18 @@ sed 's|<script type="module" src="assets/js/app.js">|<script type="module" data-
 
 grep -q 'data-engine-source="cdn"' "$DEST/index.html" \
   || { echo "error: failed to pin the deployed copy to the CDN"; exit 1; }
+
+# Every relative import in the deployed JS must resolve to a file that shipped.
+# A missing module is silent at deploy time and fatal in the browser.
+missing=0
+for js in "$DEST/assets/js/"*.js; do
+  while read -r spec; do
+    [ -n "$spec" ] || continue
+    target="$(cd "$(dirname "$js")" && cd "$(dirname "$spec")" 2>/dev/null && pwd)/$(basename "$spec")"
+    [ -f "$target" ] || { echo "error: $(basename "$js") imports $spec, which was not deployed"; missing=1; }
+  done < <(grep -oE "from '\\./[^']+'" "$js" | sed "s/from '//; s/'$//")
+done
+[ "$missing" -eq 0 ] || exit 1
 
 # The directory is called engine/, not vendor/: Jekyll's default exclude list
 # contains "vendor", and this is a Jekyll site.
