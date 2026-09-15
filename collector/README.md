@@ -28,17 +28,36 @@ from those is worth nothing.
 
 ## Deploy
 
+Two things have to be done by hand first, because neither can be automated:
+sign up at <https://dash.cloudflare.com/sign-up> (the free plan is enough), and
+run `wrangler login`, which opens a browser for OAuth.
+
+After that, one command:
+
+```sh
+npm install -g wrangler        # once
+wrangler login                 # opens a browser
+bash collector/setup.sh
+```
+
+`setup.sh` creates the D1 database, writes its id into `wrangler.toml`, applies
+the schema, deploys the Worker, and prints the endpoint plus the exact
+`deploy_pages.sh` line to run next. It is safe to re-run — an existing database
+is reused, not duplicated. It stops with instructions if wrangler is missing or
+you are not logged in.
+
+Doing it manually instead:
+
 ```sh
 cd collector
-npm install -g wrangler        # once
-wrangler login
-
 wrangler d1 create sql-practice-visits   # paste the id into wrangler.toml
 wrangler d1 execute sql-practice-visits --remote --file=./schema.sql
-
-# Set ALLOWED_ORIGINS in wrangler.toml to the origin the site is served from.
 wrangler deploy
 ```
+
+Either way, check `ALLOWED_ORIGINS` in `wrangler.toml` matches the origin the
+site is actually served from, or every beacon gets a 403 and the table stays
+empty with no obvious cause.
 
 `wrangler deploy` prints the Worker URL. Point the site at it by exporting the
 endpoint before running the deploy script:

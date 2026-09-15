@@ -267,8 +267,10 @@ entries and truncates any single query at 4,000 characters.
 
 Separate from the Activity tab, and server-side: the hosted site reports each
 page load to a small collector, which records the visitor's IP address. The
-code is in `collector/` — a Cloudflare Worker writing to a D1 table, with the
-deploy steps and query recipes in [`collector/README.md`](collector/README.md).
+code is in `collector/` — a Cloudflare Worker writing to a D1 table. Sign up
+with Cloudflare and `wrangler login`, then `bash collector/setup.sh` does the
+rest; [`collector/README.md`](collector/README.md) has the manual steps and the
+query recipes.
 
 Three things about how it is built:
 
