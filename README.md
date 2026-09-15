@@ -157,6 +157,9 @@ declarations are informational metadata only.
 |---|---|
 | Run the query | `⌘/Ctrl + Enter` |
 | Check the answer | `⌘/Ctrl + Shift + Enter` |
+| Commands and exercise search | `⌘/Ctrl + K` |
+| Show or hide the prompt | `⌘/Ctrl + P` |
+| Back to the results | `Esc` |
 | Jump to next unsolved | `Alt + →` |
 
 Grading compares your **result set** against the reference, not your SQL text —
@@ -169,8 +172,30 @@ Failure messages are diagnostic rather than binary — wrong row count tells you
 whether a join fanned out or an inner join dropped rows; wrong order tells you
 the rows were right.
 
-**Sandbox** (top bar) gives you a free-form editor where `INSERT`/`UPDATE`/`DDL`
-are allowed. **Reset data** reloads the dataset from scratch.
+**Sandbox** gives you a free-form editor where `INSERT`/`UPDATE`/`DDL` are
+allowed. **Reset data** reloads the dataset from scratch. Both are in the
+command palette, and in the top bar in every style except Zen.
+
+### Styles
+
+The **Style** picker in the top bar switches the whole look; the choice is kept
+in `localStorage`. `⌘K` → *Style:* switches it from anywhere, which is how you
+get back out of Zen.
+
+| Style | |
+|---|---|
+| **Zen** | *default.* No top bar, no exercise list, no toolbar, no tabs — the prompt, the query, and the result underneath it. Everything else is on `⌘K`. |
+| Studio | The original: IDE panels, filled buttons, tab strip. |
+| Ledger | Paper and hairlines, serif prose, the result set set like a printed table. |
+| Instrument | Charcoal, all monospace, dense, one amber accent. |
+| Swiss | Strict grid, letterspaced caps, black and white with one red hairline. |
+| Meditations | Parchment and iron gall, wide measure, no progress tally. |
+| Focus | One centred column; the exercise list parks off-canvas until you reach for it. |
+
+Zen is the one built for writing queries rather than for browsing the
+curriculum: the editor grows with the query so the result sits directly under
+the last line you typed, and the only permanent chrome is one dim line showing
+what the last run did.
 
 ### Optional: full time-zone support
 
@@ -234,7 +259,8 @@ build, because a broken reference silently breaks grading.
 
 ```
 index.html                    single page
-assets/css/app.css            dark/light theme
+assets/css/app.css            dark/light theme, command palette
+assets/css/skins.css          the six alternative styles (Zen, Ledger, ...)
 assets/js/engine.js           DuckDB boot, execution, grading, portability linter
 assets/js/curriculum.js       all 61 exercises + tracks + dialect notes
 assets/js/app.js              UI: editor, highlighting, grid, progress

@@ -522,3 +522,124 @@ html[data-skin="focus"] table.grid th { background: var(--bg); border-bottom: 1p
 html[data-skin="focus"] table.grid td { border-bottom: 0; padding: 4px 14px 4px 0; }
 html[data-skin="focus"] .verdict { background: transparent; border: 0; box-shadow: inset 2px 0 0 currentColor; padding-left: 12px; }
 html[data-skin="focus"] .statusbar { border-top: 1px solid var(--border-soft); padding: 6px 0; }
+
+
+/* ==========================================================================
+   ZEN -- the query and nothing else.
+
+   No top bar, no exercise list, no toolbar, no tab strip. The prompt sits
+   above the editor as quiet text and folds away with Cmd+P; the result
+   appears under the editor once you run something. The only permanent chrome
+   is one dim line at the bottom: what the last run did, and Cmd+K.
+
+   Everything the buttons used to do lives in the command palette.
+   ========================================================================== */
+
+html[data-skin="zen"] {
+  --bg:        #101011;
+  --bg-raise:  #17171a;
+  --bg-sunk:   #0c0c0d;
+  --panel:     #131315;
+  --border:    #26262a;
+  --border-soft:#1c1c1f;
+  --text:      #e2e2e4;
+  --text-dim:  #8b8b92;
+  --text-mute: #55555c;
+  --accent:    #e2e2e4;
+  --accent-dim:#26262a;
+  --good:      #7f9c84;
+  --good-dim:  #161d18;
+  --bad:       #b86a5c;
+  --bad-dim:   #201513;
+  --warn:      #a08a64;
+  --warn-dim:  #1e1b14;
+  --kw:        #e2e2e4;
+  --fn:        #8b8b92;
+  --str:       #7f9c84;
+  --num:       #8b8b92;
+  --cmt:       #55555c;
+}
+html[data-skin="zen"][data-theme="light"] {
+  --bg:        #fcfcfb;
+  --bg-raise:  #f2f2f0;
+  --bg-sunk:   #ededea;
+  --panel:     #fcfcfb;
+  --border:    #dededa;
+  --border-soft:#ebebe7;
+  --text:      #17171a;
+  --text-dim:  #5f5f68;
+  --text-mute: #9a9aa2;
+  --accent:    #17171a;
+  --accent-dim:#ebebe7;
+  --good:      #3e6b4c;
+  --good-dim:  #e8efe9;
+  --bad:       #9b4a3c;
+  --bad-dim:   #f5e7e4;
+  --warn:      #7a6428;
+  --warn-dim:  #f2eddf;
+  --kw:        #17171a;
+  --fn:        #5f5f68;
+  --str:       #3e6b4c;
+  --num:       #5f5f68;
+  --cmt:       #9a9aa2;
+}
+
+/* everything that is not the query */
+html[data-skin="zen"] .topbar,
+html[data-skin="zen"] .sidebar,
+html[data-skin="zen"] .toolbar,
+html[data-skin="zen"] .tabs,
+html[data-skin="zen"] .crumb,
+html[data-skin="zen"] .prompt-badges { display: none; }
+
+/* before you have run anything the result area is simply empty, rather than
+   holding a sentence telling you it is empty */
+html[data-skin="zen"] #tab-results .placeholder { display: none; }
+
+html[data-skin="zen"] .layout { height: 100vh; }
+html[data-skin="zen"] .workspace {
+  background: var(--bg); gap: 0; margin: 0 auto;
+  max-width: 900px; padding: 0 20px; overflow-y: auto;
+  grid-template-rows: auto auto minmax(140px, 1fr);
+}
+html[data-skin="zen"] .pane { background: transparent; }
+
+/* the prompt, set as quietly as it can be while still being readable */
+html[data-skin="zen"] .prompt-pane { padding: 40px 0 4px; max-height: none; }
+html[data-skin="zen"] #ex-title {
+  font: 500 14px var(--sans); color: var(--text-dim); margin: 0 0 12px;
+}
+html[data-skin="zen"] .prose { color: var(--text-dim); font-size: 13.5px; line-height: 1.6; max-width: 70ch; }
+html[data-skin="zen"] .prose code { background: transparent; border: 0; padding: 0; color: var(--text); }
+html[data-skin="zen"] .prose strong { color: var(--text-dim); font-weight: 600; }
+html[data-skin="zen"] body.prompt-hidden .prompt-pane { padding-bottom: 0; }
+
+/* the editor is the page */
+/* height is set by autosizeEditor() in app.js; this is the pre-script value */
+html[data-skin="zen"] .editor-wrap {
+  height: auto; min-height: 160px;
+  border-top: 1px solid var(--border-soft);
+}
+html[data-skin="zen"] .editor-layer { padding: 18px 0; font-size: 14px; line-height: 1.75; }
+html[data-skin="zen"] #editor-highlight { background: transparent; }
+html[data-skin="zen"] .hints { padding: 10px 0 14px; border-top: 0; }
+
+html[data-skin="zen"] .tab-body { border-top: 1px solid var(--border-soft); }
+html[data-skin="zen"] .tab-panel { padding: 14px 0 20px; }
+html[data-skin="zen"] .grid-wrap { border: 0; }
+html[data-skin="zen"] table.grid { font-size: 12.5px; }
+html[data-skin="zen"] table.grid th {
+  background: var(--bg); color: var(--text-dim); font-weight: 500;
+  border-bottom: 1px solid var(--border-soft); padding: 4px 16px 6px 0;
+}
+html[data-skin="zen"] table.grid td { border-bottom: 0; padding: 3px 16px 3px 0; }
+html[data-skin="zen"] table.grid tbody tr:hover { background: var(--bg-raise); }
+html[data-skin="zen"] .verdict { background: transparent; border: 0; box-shadow: inset 2px 0 0 currentColor; padding: 2px 0 2px 12px; }
+html[data-skin="zen"] .lint-item,
+html[data-skin="zen"] .dialect-item { background: transparent; border: 0; border-left: 1px solid var(--border); padding: 4px 0 4px 12px; }
+
+/* the one line of chrome that stays */
+html[data-skin="zen"] .statusbar {
+  border-top: 0; padding: 4px 0 14px; gap: 14px;
+  font: 11px var(--mono); color: var(--text-mute);
+}

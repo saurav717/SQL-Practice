@@ -22,6 +22,7 @@ const SKINS = [
   { id: 'swiss',       label: 'Swiss',       theme: 'light' },
   { id: 'meditations', label: 'Meditations', theme: 'light' },
   { id: 'focus',       label: 'Focus',       theme: 'dark'  },
+  { id: 'zen',         label: 'Zen',         theme: 'dark'  },
 ];
 const skinById = (id) => SKINS.find(s => s.id === id) || SKINS[0];
 
@@ -32,7 +33,8 @@ let sandbox = false;
 function loadState() {
   const base = {
     solved: {}, attempted: {}, revealed: {}, drafts: {},
-    hintsShown: {}, engine: 'redshift', theme: 'dark', skin: 'studio',
+    hintsShown: {}, engine: 'redshift', theme: 'dark', skin: 'zen',
+    promptHidden: false,
     current: EXERCISES[0].id,
   };
   try {
@@ -47,6 +49,8 @@ function applyAppearance() {
   const root = document.documentElement;
   root.dataset.theme = state.theme;
   root.dataset.skin  = skinById(state.skin).id;
+  document.body.classList.toggle('prompt-hidden', !!state.promptHidden);
+  autosizeEditor();
 }
 
 const exerciseById = (id) => EXERCISES.find(e => e.id === id);
@@ -169,9 +173,26 @@ editor.addEventListener('keydown', (e) => {
   }
 });
 
+
+// In Zen the editor is not a fixed box in a layout -- it grows with the query
+// so the result sits directly under the last line you typed instead of under
+// a rectangle of empty space. Measured from computed style so it survives a
+// change of font size or line height.
+function autosizeEditor() {
+  const wrap = document.querySelector('.editor-wrap');
+  if (!wrap) return;
+  if (document.documentElement.dataset.skin !== 'zen') { wrap.style.height = ''; return; }
+  const cs = getComputedStyle(editor);
+  const line = parseFloat(cs.lineHeight) || 22;
+  const pad  = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const lines = Math.max(editor.value.split('\n').length + 1, 6);
+  wrap.style.height = `${Math.min(lines * line + pad, window.innerHeight * 0.6)}px`;
+}
+
 function setEditor(text) {
   editor.value = text;
   paintEditor();
+  autosizeEditor();
   scheduleLint();
 }
 
@@ -486,6 +507,200 @@ async function renderSchema() {
   });
 }
 
+
+
+// ---------------------------------------------------------------------------
+// Actions the buttons and the palette share.
+// ---------------------------------------------------------------------------
+function revealHint() {
+  const ex = currentExercise();
+  const shown = state.hintsShown[ex.id] || 0;
+  if (shown >= ex.hints.length) return;
+  state.hintsShown[ex.id] = shown + 1;
+  saveState();
+  renderHints();
+}
+
+function showSolution() {
+  const ex = currentExercise();
+  if (!state.solved[ex.id] && !state.revealed[ex.id]) {
+    const ok = confirm('Show the reference solution?\n\nThis marks the exercise as "solution seen" so you know to come back to it.');
+    if (!ok) return;
+    state.revealed[ex.id] = true;
+  }
+  setEditor(ex.solution);
+  state.drafts[ex.id] = ex.solution;
+  saveState();
+  renderExerciseBadge();
+  renderSidebar();
+}
+
+function toggleSandbox() {
+  sandbox = !sandbox;
+  document.body.classList.toggle('sandbox', sandbox);
+  $('#btn-sandbox').classList.toggle('btn-primary', sandbox);
+  if (sandbox) {
+    setEditor(state.drafts.__sandbox ?? '-- Sandbox: any SQL, including DDL and DML.\n-- "Reset data" restores the dataset.\n\nSELECT table_name, estimated_size\nFROM duckdb_tables()\nORDER BY table_name;');
+  } else {
+    renderExercise();
+  }
+  renderSidebar();
+  editor.focus();
+}
+
+async function resetDatabase() {
+  if (!confirm('Reload the dataset from scratch? Any data you changed in the Sandbox is discarded.')) return;
+  setStatus('Reloading dataset…', '');
+  await engine.resetDatabase(msg => setStatus(msg, ''));
+  schemaCache = null;
+  setStatus('Dataset reloaded', '');
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  applyAppearance();
+  saveState();
+}
+
+function setSkin(id) {
+  const skin = skinById(id);
+  state.skin  = skin.id;
+  state.theme = skin.theme;
+  applyAppearance();
+  saveState();
+  const sel = $('#skin-select');
+  if (sel) sel.value = skin.id;
+}
+
+function setEngine(id) {
+  state.engine = id;
+  saveState();
+  const sel = $('#engine-select');
+  if (sel) sel.value = id;
+  renderLint();
+  renderDialect();
+}
+
+// The prompt is the only content Zen keeps on screen, so it is also the only
+// thing worth being able to fold away while you are actually typing.
+function togglePrompt() {
+  document.body.classList.toggle('prompt-hidden');
+  state.promptHidden = document.body.classList.contains('prompt-hidden');
+  saveState();
+  editor.focus();
+}
+
+// ---------------------------------------------------------------------------
+// Command palette.
+// The Zen style has no buttons, no tabs and no exercise list, so everything
+// they used to reach has to be reachable from here. Cmd/Ctrl+K anywhere.
+// ---------------------------------------------------------------------------
+let paletteItems = [];
+let paletteIndex = 0;
+
+function buildPaletteItems() {
+  const items = [];
+  const add = (label, hint, run, group) => items.push({ label, hint, run, group });
+
+  add('Run query', '\u2318\u21B5', doRun, 'Do');
+  if (!sandbox) add('Check answer', '\u2318\u21E7\u21B5', doCheck, 'Do');
+  if (!sandbox) {
+    const ex = currentExercise();
+    const shown = state.hintsShown[ex.id] || 0;
+    if (shown < ex.hints.length) add(`Reveal hint ${shown + 1} of ${ex.hints.length}`, '', revealHint, 'Do');
+    add('Show solution', '', showSolution, 'Do');
+  }
+  add('Clear the editor', '', () => { setEditor(''); editor.focus(); }, 'Do');
+  add(sandbox ? 'Leave the sandbox' : 'Open the sandbox', '', toggleSandbox, 'Do');
+  add('Reload the dataset', '', resetDatabase, 'Do');
+
+  add('Prompt: show or hide', '', togglePrompt, 'View');
+  for (const [tab, label] of [['results', 'Results'], ['feedback', 'Feedback'],
+                              ['portability', 'Portability'], ['dialect', 'Dialect notes'],
+                              ['schema', 'Schema']]) {
+    if (sandbox && (tab === 'feedback' || tab === 'dialect')) continue;
+    add(`Show ${label.toLowerCase()}`, '', () => showTab(tab), 'View');
+  }
+
+  for (const s of SKINS) {
+    if (s.id === state.skin) continue;
+    add(`Style: ${s.label}`, '', () => setSkin(s.id), 'Settings');
+  }
+  add('Toggle light / dark', '', toggleTheme, 'Settings');
+  for (const e of ENGINES) {
+    if (e === state.engine) continue;
+    add(`Target: ${ENGINE_LABELS[e]}`, '', () => setEngine(e), 'Settings');
+  }
+
+  const next = nextUnsolved();
+  if (next) add(`Next unsolved: ${next.title}`, 'alt \u2192', () => selectExercise(next.id), 'Go');
+  for (const ex of EXERCISES) {
+    if (ex.id === state.current && !sandbox) continue;
+    const track = TRACKS.find(t => t.id === ex.track);
+    const st = exerciseStatus(ex.id);
+    add(ex.title, `${track ? track.name : ex.track}${st === 'done' ? ' \u00B7 solved' : ''}`,
+        () => selectExercise(ex.id), 'Go');
+  }
+  return items;
+}
+
+// Subsequence match, so "rollz" finds "Rolling z-score". Score favours
+// matches that start on a word boundary and cluster together.
+function fuzzy(needle, hay) {
+  if (!needle) return 0;
+  const n = needle.toLowerCase(), h = hay.toLowerCase();
+  let score = 0, hi = 0, prev = -2;
+  for (const ch of n) {
+    const at = h.indexOf(ch, hi);
+    if (at === -1) return -1;
+    score += (at === prev + 1) ? 3 : 1;
+    if (at === 0 || /[\s\u00B7._-]/.test(h[at - 1])) score += 2;
+    prev = at; hi = at + 1;
+  }
+  return score - h.length * 0.01;
+}
+
+function renderPalette() {
+  const q = $('#palette-input').value.trim();
+  const scored = paletteItems
+    .map(it => ({ it, s: fuzzy(q, `${it.label} ${it.hint} ${it.group}`) }))
+    .filter(x => x.s >= 0)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 9);
+
+  paletteItems.matches = scored.map(x => x.it);
+  if (paletteIndex >= scored.length) paletteIndex = Math.max(0, scored.length - 1);
+
+  const list = $('#palette-list');
+  if (!scored.length) { list.innerHTML = '<div class="palette-empty">Nothing matches.</div>'; return; }
+  list.innerHTML = scored.map(({ it }, i) =>
+    `<button class="palette-item${i === paletteIndex ? ' palette-item-on' : ''}" data-i="${i}">
+       <span class="palette-group">${esc(it.group)}</span>
+       <span class="palette-label">${esc(it.label)}</span>
+       <span class="palette-hint">${esc(it.hint)}</span>
+     </button>`).join('');
+}
+
+function openPalette() {
+  paletteItems = buildPaletteItems();
+  paletteIndex = 0;
+  $('#palette-input').value = '';
+  $('#palette').hidden = false;
+  renderPalette();
+  $('#palette-input').focus();
+}
+
+function closePalette() {
+  $('#palette').hidden = true;
+  editor.focus();
+}
+
+function runPaletteItem(i) {
+  const it = (paletteItems.matches || [])[i];
+  closePalette();
+  if (it) it.run();
+}
+
 // --- tabs -------------------------------------------------------------------
 function showTab(name) {
   $$('.tab').forEach(t => t.classList.toggle('tab-on', t.dataset.tab === name));
@@ -501,77 +716,41 @@ function wire() {
   $('#btn-run').addEventListener('click', doRun);
   $('#btn-check').addEventListener('click', doCheck);
 
-  $('#btn-hint').addEventListener('click', () => {
-    const ex = currentExercise();
-    const shown = state.hintsShown[ex.id] || 0;
-    if (shown >= ex.hints.length) return;
-    state.hintsShown[ex.id] = shown + 1;
-    saveState();
-    renderHints();
-  });
-
-  $('#btn-solution').addEventListener('click', () => {
-    const ex = currentExercise();
-    if (!state.solved[ex.id] && !state.revealed[ex.id]) {
-      const ok = confirm('Show the reference solution?\n\nThis marks the exercise as "solution seen" so you know to come back to it.');
-      if (!ok) return;
-      state.revealed[ex.id] = true;
-    }
-    setEditor(ex.solution);
-    state.drafts[ex.id] = ex.solution;
-    saveState();
-    renderExerciseBadge();
-    renderSidebar();
-  });
-
+  $('#btn-hint').addEventListener('click', revealHint);
+  $('#btn-solution').addEventListener('click', showSolution);
   $('#btn-clear').addEventListener('click', () => { setEditor(''); editor.focus(); });
-
-  $('#btn-sandbox').addEventListener('click', () => {
-    sandbox = !sandbox;
-    document.body.classList.toggle('sandbox', sandbox);
-    $('#btn-sandbox').classList.toggle('btn-primary', sandbox);
-    if (sandbox) {
-      setEditor(state.drafts.__sandbox ?? '-- Sandbox: any SQL, including DDL and DML.\n-- "Reset data" restores the dataset.\n\nSELECT table_name, estimated_size\nFROM duckdb_tables()\nORDER BY table_name;');
-    } else {
-      renderExercise();
-    }
-    renderSidebar();
-  });
-
-  $('#btn-reset-db').addEventListener('click', async () => {
-    if (!confirm('Reload the dataset from scratch? Any data you changed in the Sandbox is discarded.')) return;
-    setStatus('Reloading dataset…', '');
-    await engine.resetDatabase(msg => setStatus(msg, ''));
-    schemaCache = null;
-    setStatus('Dataset reloaded', '');
-  });
-
-  $('#btn-theme').addEventListener('click', () => {
-    state.theme = state.theme === 'dark' ? 'light' : 'dark';
-    applyAppearance();
-    saveState();
-  });
+  $('#btn-sandbox').addEventListener('click', toggleSandbox);
+  $('#btn-reset-db').addEventListener('click', resetDatabase);
+  $('#btn-theme').addEventListener('click', toggleTheme);
+  $('#btn-palette').addEventListener('click', openPalette);
+  $('#ex-title').addEventListener('click', togglePrompt);
 
   const skinSel = $('#skin-select');
   skinSel.innerHTML = SKINS.map(s =>
     `<option value="${s.id}"${s.id === state.skin ? ' selected' : ''}>${esc(s.label)}</option>`).join('');
-  skinSel.addEventListener('change', () => {
-    const skin = skinById(skinSel.value);
-    state.skin  = skin.id;
-    state.theme = skin.theme;
-    applyAppearance();
-    saveState();
-  });
+  skinSel.addEventListener('change', () => setSkin(skinSel.value));
 
   const sel = $('#engine-select');
   sel.innerHTML = ENGINES.map(e =>
     `<option value="${e}"${e === state.engine ? ' selected' : ''}>${esc(ENGINE_LABELS[e])}</option>`).join('');
-  sel.addEventListener('change', () => {
-    state.engine = sel.value;
-    saveState();
-    renderLint();
-    renderDialect();
+  sel.addEventListener('change', () => setEngine(sel.value));
+
+  // --- palette ---
+  const pal = $('#palette');
+  const palIn = $('#palette-input');
+  palIn.addEventListener('input', () => { paletteIndex = 0; renderPalette(); });
+  palIn.addEventListener('keydown', (e) => {
+    const n = (paletteItems.matches || []).length;
+    if (e.key === 'ArrowDown') { e.preventDefault(); paletteIndex = (paletteIndex + 1) % Math.max(n, 1); renderPalette(); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); paletteIndex = (paletteIndex - 1 + n) % Math.max(n, 1); renderPalette(); }
+    if (e.key === 'Enter')     { e.preventDefault(); runPaletteItem(paletteIndex); }
+    if (e.key === 'Escape')    { e.preventDefault(); closePalette(); }
   });
+  $('#palette-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('.palette-item');
+    if (btn) runPaletteItem(Number(btn.dataset.i));
+  });
+  pal.addEventListener('mousedown', (e) => { if (e.target === pal) closePalette(); });
 
   $('#search').addEventListener('input', renderSidebar);
   $$('#status-filter .chip').forEach(chip => {
@@ -590,12 +769,25 @@ function wire() {
       e.preventDefault();
       if (e.shiftKey && !sandbox) doCheck(); else doRun();
     }
+    if (mod && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      $('#palette').hidden ? openPalette() : closePalette();
+    }
+    if (mod && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); togglePrompt(); }
+    if (e.key === 'Escape' && $('#palette').hidden) {
+      // back out to the results, which is where you were headed anyway
+      const on = $('.tab-panel-on');
+      if (on && on.id !== 'tab-results') { e.preventDefault(); showTab('results'); editor.focus(); }
+    }
     if (e.altKey && e.key === 'ArrowRight') {
       e.preventDefault();
       const n = nextUnsolved();
       if (n) selectExercise(n.id);
     }
   });
+
+  editor.addEventListener('input', autosizeEditor);
+  window.addEventListener('resize', autosizeEditor);
 
   // sandbox drafts are kept separately from exercise drafts
   editor.addEventListener('input', () => {

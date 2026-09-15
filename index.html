@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" data-skin="studio">
+<html lang="en" data-theme="dark" data-skin="zen">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -94,7 +94,7 @@
         <pre id="editor-highlight" class="editor-layer" aria-hidden="true"></pre>
         <textarea id="editor" class="editor-layer editor-input" spellcheck="false"
                   autocomplete="off" autocapitalize="off" autocorrect="off"
-                  placeholder="Write your query here. ⌘↵ to run, ⌘⇧↵ to check."></textarea>
+                  placeholder="Write your query here. ⌘↵ run · ⌘⇧↵ check · ⌘K commands"></textarea>
       </div>
 
       <div id="hints" class="hints" hidden></div>
@@ -120,11 +120,20 @@
       <div class="statusbar">
         <span id="status-left"  class="muted"></span>
         <span id="status-right" class="muted"></span>
+        <button id="btn-palette" class="palette-cue" title="Commands">⌘K</button>
       </div>
     </article>
 
   </section>
 </main>
+
+<div id="palette" class="palette" hidden>
+  <div class="palette-box" role="dialog" aria-label="Commands">
+    <input id="palette-input" type="text" autocomplete="off" autocapitalize="off"
+           autocorrect="off" spellcheck="false" placeholder="Jump to an exercise, or type a command…">
+    <div id="palette-list" class="palette-list"></div>
+  </div>
+</div>
 
 <script type="module" src="assets/js/app.js"></script>
 </body>

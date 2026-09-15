@@ -398,3 +398,50 @@ body.sandbox .workspace { grid-template-rows: auto minmax(180px, 1fr); }
 
 /* A numeric column is right-aligned all the way up, header included. */
 table.grid th.is-num { text-align: right; }
+
+/* ---------- command palette ---------- */
+.palette {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 13vh 16px 16px; background: rgba(0, 0, 0, .45);
+}
+/* `display: flex` above outranks the user-agent rule for [hidden], so the
+   closed palette would keep covering the page and eating every click. */
+.palette[hidden] { display: none; }
+.palette-box {
+  width: min(620px, 100%); background: var(--panel);
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+}
+#palette-input {
+  width: 100%; border: 0; border-bottom: 1px solid var(--border-soft);
+  background: transparent; color: var(--text); font: 15px var(--sans); padding: 13px 15px;
+}
+#palette-input:focus { outline: none; }
+#palette-input::placeholder { color: var(--text-mute); }
+.palette-list { max-height: 46vh; overflow-y: auto; }
+.palette-item {
+  display: flex; align-items: baseline; gap: 10px; width: 100%;
+  border: 0; background: transparent; color: var(--text-dim);
+  padding: 7px 15px; text-align: left; cursor: pointer; font: 13px var(--sans);
+}
+.palette-item-on { background: var(--bg-raise); color: var(--text); }
+.palette-group {
+  flex: none; width: 54px; font: 10px var(--mono); color: var(--text-mute);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.palette-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-hint { flex: none; font: 11px var(--mono); color: var(--text-mute); }
+.palette-empty { padding: 14px 15px; color: var(--text-mute); font-size: 13px; }
+
+.palette-cue {
+  border: 0; background: transparent; color: var(--text-mute);
+  font: 11px var(--mono); cursor: pointer; padding: 0; flex: none;
+}
+.palette-cue:hover { color: var(--text); }
+
+/* ---------- folded prompt ---------- */
+#ex-title { cursor: pointer; }
+body.prompt-hidden #ex-prompt,
+body.prompt-hidden .prompt-badges,
+body.prompt-hidden .crumb { display: none; }
+body.prompt-hidden #ex-title { margin-bottom: 0; }

@@ -28,11 +28,16 @@ page.on('pageerror', e => { console.log('  PAGEERROR', e.message); errors.push('
 page.on('requestfailed', r => console.log('  REQFAIL', r.url().slice(0,110), r.failure()?.errorText));
 page.on('response', r => { if (r.status() >= 400) console.log('  HTTP', r.status(), r.url().slice(0,110)); });
 
+// Sections 1-8 click buttons, tabs and the exercise list, so pin the style
+// that shows them; section 9 covers the default Zen surface, which has none.
+await page.addInitScript(() => localStorage.setItem('sqlpractice.v1',
+  JSON.stringify({ skin: 'studio', theme: 'dark' })));
+
 const t0 = Date.now();
 await page.goto('http://localhost:8099/', { waitUntil: 'domcontentloaded' });
 console.log('waiting for engine boot...');
 try {
-  await page.waitForSelector('#topbar:not([hidden])', { timeout: 90000 });
+  await page.waitForSelector('#boot', { state: 'detached', timeout: 90000 });
 } catch (e) {
   console.log('BOOT STALLED. status text =', await page.textContent('#boot-status').catch(()=>'(gone)'));
   console.log('boot error box =', await page.textContent('.boot-error').catch(()=>'(none)'));
@@ -98,7 +103,55 @@ await page.click('#btn-hint');
 await page.waitForSelector('.hint', { timeout: 5000 });
 console.log('hint       :', (await page.textContent('.hint')).replace(/\s+/g, ' ').slice(0, 80));
 
-// --- 8. responsive --------------------------------------------------------
+// --- 8. Zen: the default surface, driven entirely from the keyboard -------
+// switch through the palette, the way you would from inside Zen
+await page.keyboard.press('Control+k');
+await page.waitForSelector('#palette:not([hidden])', { timeout: 5000 });
+await page.fill('#palette-input', 'style zen');
+await page.keyboard.press('Enter');
+await page.waitForTimeout(250);
+const gone = await Promise.all(['.topbar', '.sidebar', '.toolbar', '.tabs']
+  .map(sel => page.isHidden(sel)));
+console.log('zen chrome :', gone.every(Boolean) ? 'top bar, list, toolbar and tabs all hidden' : 'STILL VISIBLE');
+
+await page.fill('#editor', 'SELECT country, count(*) AS n FROM customers GROUP BY 1 ORDER BY n DESC LIMIT 3');
+await page.keyboard.press('Control+Enter');
+await page.waitForSelector('table.grid', { timeout: 30000 });
+await page.waitForFunction(() => !/Running/.test(document.querySelector('#status-left').textContent), null, { timeout: 15000 });
+console.log('zen run    :', await page.textContent('#status-left'));
+
+const wrapH = await page.evaluate(() => document.querySelector('.editor-wrap').getBoundingClientRect().height);
+await page.fill('#editor', 'SELECT 1\n'.repeat(18));
+await page.waitForTimeout(150);
+const wrapH2 = await page.evaluate(() => document.querySelector('.editor-wrap').getBoundingClientRect().height);
+console.log('zen editor :', wrapH2 > wrapH ? `grows with the query (${wrapH.toFixed(0)} -> ${wrapH2.toFixed(0)}px)` : 'DID NOT GROW');
+
+await page.keyboard.press('Control+k');
+await page.waitForSelector('#palette:not([hidden])', { timeout: 5000 });
+await page.fill('#palette-input', 'rollz');
+await page.waitForTimeout(150);
+console.log('palette    :', await page.textContent('.palette-item-on .palette-label'), '(fuzzy "rollz")');
+await page.keyboard.press('Enter');
+await page.waitForTimeout(300);
+console.log('palette go :', (await page.textContent('#ex-title')).trim(),
+            '| closed:', await page.isHidden('#palette'));
+
+await page.keyboard.press('Control+k');
+await page.fill('#palette-input', 'show schema');
+await page.keyboard.press('Enter');
+await page.waitForSelector('.schema-table', { timeout: 15000 });
+await page.keyboard.press('Escape');
+await page.waitForTimeout(150);
+console.log('esc        :', await page.isVisible('#tab-results.tab-panel-on') ? 'returns to results' : 'DID NOT RETURN');
+
+await page.keyboard.press('Control+p');
+await page.waitForTimeout(150);
+const folded = await page.isHidden('#ex-prompt');
+await page.keyboard.press('Control+p');
+await page.waitForTimeout(150);
+console.log('prompt     :', folded && await page.isVisible('#ex-prompt') ? 'folds and unfolds on Ctrl+P' : 'FOLD BROKEN');
+
+// --- 9. responsive --------------------------------------------------------
 await page.setViewportSize({ width: 390, height: 780 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
