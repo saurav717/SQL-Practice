@@ -17,5 +17,7 @@ echo "== dataset still exhibits the properties the prompts claim =="
 node tools/check_dataset.mjs
 echo "== both engine sources (vendored + CDN) boot and query =="
 node tools/check_engine_source.mjs
+echo "== visit collector logs the edge address, not the payload =="
+node tools/check_collector.mjs
 echo
 echo "All checks passed."

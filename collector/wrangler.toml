@@ -1,0 +1,20 @@
+name = "sql-practice-collector"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+# Origins allowed to POST /collect. Anything else gets a 403 and no row.
+# An empty list fails closed -- the endpoint collects nothing until this is set.
+[vars]
+ALLOWED_ORIGINS = "https://saurav717.github.io"
+RETENTION_DAYS = "90"
+
+# Created with:  wrangler d1 create sql-practice-visits
+# Paste the database_id the command prints.
+[[d1_databases]]
+binding = "DB"
+database_name = "sql-practice-visits"
+database_id = "PASTE_DATABASE_ID_HERE"
+
+# Nightly retention sweep. Without this the table grows forever.
+[triggers]
+crons = ["17 4 * * *"]
