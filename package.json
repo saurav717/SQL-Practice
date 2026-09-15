@@ -9,6 +9,7 @@
     "seed": "node tools/gen_seed.mjs",
     "check": "bash tools/check_all.sh",
     "check:exercises": "node tools/check_exercises.mjs",
+    "check:schema": "node tools/check_schema_notes.mjs",
     "check:browser": "node tools/browser_test.mjs"
   },
   "devDependencies": {

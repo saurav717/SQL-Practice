@@ -94,6 +94,59 @@ await page.click('[data-tab="schema"]');
 await page.waitForSelector('.schema-table', { timeout: 15000 });
 console.log('schema     :', await page.locator('.schema-table').count(), 'tables');
 
+// --- 5b. table hover cards ------------------------------------------------
+await page.locator('.ex-item').first().click();          // the LEFT JOIN drill
+await page.waitForSelector('#ex-tables .tbl-chip', { timeout: 10000 });
+const chipNames = await page.locator('#ex-tables .tbl-chip').allInnerTexts();
+console.log('tables row :', chipNames.join(', '));
+if (!chipNames.includes('departments') || !chipNames.includes('employees')) {
+  errors.push('the Tables row does not name both tables of joins-1: ' + chipNames.join(', '));
+}
+
+// Hovering a chip opens the card, with the columns of that table in it.
+await page.locator('#ex-tables .tbl-chip', { hasText: 'employees' }).hover();
+await page.waitForSelector('#tbl-card:not([hidden])', { timeout: 5000 });
+const cardName = await page.textContent('#tbl-card .tip-name');
+const cardCols = await page.locator('#tbl-card .tip-cols th').allInnerTexts();
+console.log('hover card :', cardName, '->', cardCols.join(', '));
+if (cardName !== 'employees') errors.push('the card describes the wrong table: ' + cardName);
+for (const want of ['employee_id', 'department_id', 'manager_id', 'salary']) {
+  if (!cardCols.includes(want)) errors.push(`the employees card is missing ${want}`);
+}
+const cardText = (await page.textContent('#tbl-card')).replace(/\s+/g, ' ');
+if (!/departments\.department_id/.test(cardText)) errors.push('the card does not show the join key');
+if (!/DECIMAL\(12,2\)/.test(cardText)) errors.push('the card does not show column types: ' + cardText.slice(0, 160));
+if (!/contractors/.test(cardText)) errors.push('the card does not carry the table purpose');
+if (!/NULL for CEO/.test(cardText)) errors.push('the card does not carry the schema.sql column note');
+const onScreen = await page.evaluate(() => {
+  const r = document.querySelector('#tbl-card').getBoundingClientRect();
+  return r.left >= 0 && r.top >= 0 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1;
+});
+if (!onScreen) errors.push('the hover card is positioned off screen');
+
+// Moving away closes it again.
+await page.mouse.move(5, 5);
+await page.waitForFunction(() => document.querySelector('#tbl-card').hidden, null, { timeout: 5000 });
+
+// A table named in the prompt text is a trigger too, and a click pins the card
+// open -- which is the only way in on a touch screen.
+await page.locator('.ex-item', { hasText: 'The fan-out problem' }).click();
+await page.waitForSelector('#ex-prompt code.tbl-ref', { timeout: 10000 });
+const inline = await page.locator('#ex-prompt code.tbl-ref').allInnerTexts();
+console.log('in prompt  :', inline.join(', '));
+await page.locator('#ex-prompt code.tbl-ref').first().click();
+await page.waitForSelector('#tbl-card.tbl-card-pinned', { timeout: 5000 });
+const pinnedName = await page.textContent('#tbl-card .tip-name');
+console.log('pinned     :', pinnedName);
+if (pinnedName !== inline[0]) errors.push(`clicking \`${inline[0]}\` pinned ${pinnedName}`);
+await page.mouse.move(5, 5);                      // a pinned card ignores hover
+await page.waitForTimeout(300);
+if (await page.locator('#tbl-card').isHidden()) errors.push('the pinned card closed on pointer-out');
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => document.querySelector('#tbl-card').hidden, null, { timeout: 5000 });
+console.log('escape     : card closed');
+await page.locator('.ex-item').first().click();
+
 // --- 6. dialect notes -----------------------------------------------------
 await page.click('[data-tab="dialect"]');
 await page.waitForSelector('.dialect-item', { timeout: 5000 });

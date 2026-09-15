@@ -9,6 +9,8 @@ echo "== every reference solution runs and returns rows =="
 node tools/check_exercises.mjs
 echo "== grading wrapper preserves ORDER BY =="
 node tools/check_order.mjs
+echo "== hover-card notes agree with the database =="
+node tools/check_schema_notes.mjs
 echo "== prompts' factual claims still hold =="
 node tools/check_claims.mjs
 echo "== dataset still exhibits the properties the prompts claim =="
