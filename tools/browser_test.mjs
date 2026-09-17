@@ -380,7 +380,7 @@ if (undo2 !== 'SELECT 1\nFROM t\nWHERE x') {
   errors.push('undo did not reach the original text: ' + JSON.stringify(undo2));
 }
 
-// A caret inside one line pads to the next tab stop instead of indenting.
+// With nothing selected, Tab is a plain soft tab at the caret.
 await page.fill('#editor', 'SELECT 1\nFROM t');
 await page.evaluate(() => {
   const e = document.querySelector('#editor');
@@ -389,7 +389,7 @@ await page.evaluate(() => {
 await page.keyboard.press('Tab');
 const caretTab = await editorValue();
 console.log('tab caret  :', JSON.stringify(caretTab));
-if (caretTab !== 'SEL ECT 1\nFROM t') errors.push('Tab at a caret did not pad to the tab stop: ' + JSON.stringify(caretTab));
+if (caretTab !== 'SEL  ECT 1\nFROM t') errors.push('Tab at a caret did not insert a soft tab: ' + JSON.stringify(caretTab));
 
 // ⌘/ has to be undoable too -- it went through the same broken path.
 await page.fill('#editor', 'SELECT 1');
@@ -408,6 +408,23 @@ await page.keyboard.press('Control+z');
 const undoClear = await editorValue();
 console.log('undo clear :', JSON.stringify(undoClear));
 if (undoClear !== 'SELECT 1 FROM t') errors.push('undo did not bring back a cleared editor: ' + JSON.stringify(undoClear));
+
+// Clicking a column in the Schema browser inserts it through the same path.
+await page.click('[data-tab="schema"]');
+await page.waitForSelector('.schema-table', { timeout: 15000 });
+await page.fill('#editor', 'SELECT ');
+await page.evaluate(() => {
+  const e = document.querySelector('#editor');
+  e.focus(); e.setSelectionRange(7, 7);
+});
+await page.locator('[data-insert]').first().click();
+const inserted = await editorValue();
+console.log('col insert :', JSON.stringify(inserted));
+if (inserted === 'SELECT ') errors.push('clicking a schema column inserted nothing');
+await page.keyboard.press('Control+z');
+const undoInsert = await editorValue();
+if (undoInsert !== 'SELECT ') errors.push('undo did not reverse a schema-column insert: ' + JSON.stringify(undoInsert));
+await page.click('[data-tab="results"]');
 
 // --- 10c. line-number gutter ---------------------------------------------
 const gutterText = () => page.evaluate(() => {
