@@ -338,7 +338,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 | `tools/check_schema_notes.mjs` | the hover cards' tables, columns and join keys all exist in the database |
 | `tools/check_claims.mjs` | the traps prompts describe actually occur in the data |
 | `tools/check_dataset.mjs` | 24 dataset invariants (gaps, ties, streaks, overlaps, orphans) |
-| `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hover cards, hints, mobile layout |
+| `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hover cards, hints, solution box, mobile layout |
 | `tools/check_collector.mjs` | the visit collector logs the edge address (never the payload), enforces its origin allowlist, and prunes on schedule |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,
