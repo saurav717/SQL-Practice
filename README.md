@@ -159,7 +159,9 @@ declarations are informational metadata only.
 | Run every statement in the editor | `⌘/Ctrl + Alt + Enter` |
 | Check the answer | `⌘/Ctrl + Shift + Enter` |
 | Comment / uncomment the selected lines | `⌘/Ctrl + /` |
-| Indent | `Tab` |
+| Indent the lines the selection touches | `Tab` |
+| Dedent them again | `Shift + Tab` |
+| Undo / redo | `⌘/Ctrl + Z`, `⌘⇧Z / Ctrl + Y` |
 | Next exercise | `⌘/Ctrl + Alt + ↓` |
 | Previous exercise | `⌘/Ctrl + Alt + ↑` |
 
@@ -179,6 +181,14 @@ deliberately not `⌥←`/`⌥→`: those move the caret one word at a time in t
 editor on macOS, and a page-level shortcut on them makes the editor unusable.
 After a correct answer, the Feedback tab also offers the next unsolved
 exercise as a button.
+
+`Tab` indents every line the selection touches and `⇧Tab` takes a level back
+off; with nothing selected it inserts two spaces at the caret. It never replaces
+the selection, so tabbing a selected block cannot swallow it.
+
+Every edit the page makes to the editor — `Tab`, `⌘/`, and clicking a column in
+the Schema browser — goes in through the browser's own insert path rather than
+by assigning to `value`, which is what keeps `⌘Z` able to undo it.
 
 `⌘/` comments the selected lines with `--`, and uncomments them when they are
 all already commented. The marker goes at the block's shallowest indent, so the
