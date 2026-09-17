@@ -78,6 +78,42 @@ for js in "$DEST/assets/js/"*.js; do
 done
 [ "$missing" -eq 0 ] || exit 1
 
+# Cache-busting, last -- after the import guard above, which needs the plain
+# specifiers. A module graph is the worst case for a stale cache: the browser
+# can serve yesterday's layout.js beside today's app.js and the page half
+# works. So every reference the deployed copy makes -- the stylesheet, the
+# entry script, and every relative import inside the modules -- carries the
+# build tag, and one visit after a deploy re-fetches all of it.
+#
+# BUILD defaults to today's date; pass something more specific when two
+# deploys land on one day (BUILD=20260917-layout tools/deploy_pages.sh ...).
+BUILD="${BUILD:-$(date -u +%Y%m%d)}"
+case "$BUILD" in *[!A-Za-z0-9.-]*) echo "error: BUILD may only contain A-Z a-z 0-9 . -"; exit 1;; esac
+
+sed -i.bak -E \
+  -e "s|(<link rel=\"stylesheet\" href=\"assets/css/app\.css)\"|\1?v=$BUILD\"|" \
+  -e "s|(src=\"assets/js/app\.js)\"|\1?v=$BUILD\"|" \
+  -e "s|(<link rel=\"stylesheet\")|<meta name=\"build\" content=\"$BUILD\">\n\1|" \
+  "$DEST/index.html"
+rm -f "$DEST/index.html.bak"
+
+for js in "$DEST/assets/js/"*.js; do
+  sed -i.bak -E "s|(from '\./[A-Za-z0-9_.-]+\.js)'|\1?v=$BUILD'|g" "$js"
+  rm -f "$js.bak"
+done
+
+# Anything still unversioned would be the one file a browser serves stale.
+stale=0
+grep -q "app.css?v=$BUILD" "$DEST/index.html" || { echo "error: the stylesheet is not versioned"; stale=1; }
+grep -q "app.js?v=$BUILD"  "$DEST/index.html" || { echo "error: the entry script is not versioned"; stale=1; }
+for js in "$DEST/assets/js/"*.js; do
+  if grep -qE "from '\./[A-Za-z0-9_.-]+\.js'" "$js"; then
+    echo "error: $(basename "$js") still has an unversioned import"; stale=1
+  fi
+done
+[ "$stale" -eq 0 ] || exit 1
+echo "build:     $BUILD"
+
 # The directory is called engine/, not vendor/: Jekyll's default exclude list
 # contains "vendor", and this is a Jekyll site.
 case "$(ls "$DEST")" in *vendor*) echo "error: vendor/ would be dropped by Jekyll"; exit 1;; esac

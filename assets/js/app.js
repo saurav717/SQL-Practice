@@ -28,7 +28,7 @@ function loadState() {
     solved: {}, attempted: {}, revealed: {}, drafts: {},
     hintsShown: {}, hintsHidden: {}, solutionHidden: {},
     engine: 'redshift', theme: 'dark',
-    current: EXERCISES[0].id, layout: {},
+    current: EXERCISES[0].id, layout: {}, tabOrder: [],
   };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') };
@@ -1084,6 +1084,17 @@ function wire() {
 
   $$('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
 
+  // The tabs can be dragged into whatever order you read them in.
+  layout.initTabs({
+    saved: state.tabOrder,
+    onReorder: (order) => { state.tabOrder = order; saveState(); },
+  });
+
+  $('#btn-reset-layout').addEventListener('click', () => {
+    layout.reset();
+    layout.resetTabs();
+  });
+
   document.addEventListener('keydown', (e) => {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key === 'Enter') {
@@ -1156,7 +1167,7 @@ function wire() {
 
   layout.init({
     saved: state.layout,
-    onResize: (sizes) => { state.layout = sizes; saveState(); },
+    onLayout: (arrangement) => { state.layout = arrangement; saveState(); },
   });
 
   wire();

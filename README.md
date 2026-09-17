@@ -164,6 +164,8 @@ declarations are informational metadata only.
 | Undo / redo | `⌘/Ctrl + Z`, `⌘⇧Z / Ctrl + Y` |
 | Next exercise | `⌘/Ctrl + Alt + ↓` |
 | Previous exercise | `⌘/Ctrl + Alt + ↑` |
+| Resize a focused seam | `←/→` or `↑/↓` (`Home`/`End`) |
+| Move a focused results tab | `Shift + ←/→` |
 
 **Run acts on one statement**, the way a Snowflake worksheet does: the one the
 cursor is sitting in. Keep scratch work above your answer, separated by `;`, and
@@ -205,7 +207,8 @@ whether a join fanned out or an inner join dropped rows; wrong order tells you
 the rows were right.
 
 **Sandbox** (top bar) gives you a free-form editor where `INSERT`/`UPDATE`/`DDL`
-are allowed. **Reset data** reloads the dataset from scratch.
+are allowed. **Reset data** reloads the dataset from scratch. **⊞** puts the
+panels and tabs back to their starting arrangement.
 
 ### Which tables, and what is in them
 
@@ -232,16 +235,41 @@ read from the live database, the per-column notes are parsed out of
 stop agreeing — a card naming a column the warehouse does not have is worse than
 no card at all.
 
-### Resizing the panes
+### Rearranging the panels
 
-Every seam is a drag handle: the one between the exercise list and the
-workspace, and the two between the prompt, the editor and the results panel.
-Drag to resize, **double-click to reset that pane**, or focus a seam and use the
-arrow keys (`Home`/`End` for the extremes). Sizes are in pixels and are
-remembered per browser, so the editor does not re-scale every time the window
-changes height. Each pane has a floor that a drag cannot push past, so nothing
-can be collapsed to nothing. Below 1000px wide the panes stack and size
-themselves, and the handles go away.
+The window is four tiles — **Exercises**, **Exercise**, **Editor**,
+**Results** — and you decide where each one goes. Every tile carries a thin bar
+with a grip on the left:
+
+* **Drag the bar** and drop the tile against the **left, right, top or bottom**
+  edge of any other tile: it splits that tile and takes half. Drop it in the
+  **middle** of another tile instead and the two swap places. Drop it against an
+  edge of the *window* and it becomes a full-height column or full-width row.
+  The outline and the label under the pointer show what the drop will do before
+  you commit to it; `Esc` calls it off.
+* **Four arrow buttons** appear on the bar on hover, and send the tile straight
+  to the left, top, bottom or right edge of the window. They are the keyboard
+  path to the same thing — no pointer required.
+* **⊞ in the top bar** puts every tile and every tab back where it started.
+
+Stack the editor beside the results grid, park the exercise list on the right,
+put the prompt along the bottom — whatever you arrange survives a reload,
+because the arrangement is stored per browser.
+
+The tabs in the results panel rearrange too: **drag a tab sideways** to move it,
+or focus one and use `Shift + ←/→`. Dragging a tab reorders it without switching
+to it.
+
+### Resizing the panels
+
+Every seam between two tiles is a drag handle. Drag to resize, **double-click to
+reset that seam**, or focus one and use the arrow keys (`Home`/`End` for the
+extremes). Sizes are in pixels and are remembered per browser, so the editor does
+not re-scale every time the window changes height. Each tile has a floor that a
+drag cannot push past, so nothing can be collapsed to nothing — and in every
+split, the tile holding the results grid is the elastic one, so a window resize
+lands there instead of re-shuffling everything you set. Below 1000px wide the
+tiles stack and size themselves, and the handles go away.
 
 ### Activity log
 
@@ -378,7 +406,7 @@ assets/js/engine.js           DuckDB boot, execution, grading, portability linte
 assets/js/curriculum.js       all 61 exercises + tracks + dialect notes
 assets/js/app.js              UI: editor, highlighting, grid, progress
 assets/js/activity.js         activity log: device ID, opt-in location, export
-assets/js/layout.js           draggable pane splitters (sizes persist per browser)
+assets/js/layout.js           the tile tree: drag-to-rearrange, splitters, tab order
 assets/js/schema-doc.js       table purposes, schema.sql note parser, join keys
 assets/js/tabletip.js         the table hover card (chips, prompt triggers, positioning)
 assets/data/schema.sql        20 annotated tables

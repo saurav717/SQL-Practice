@@ -342,6 +342,136 @@ if (sandboxOut < 100) errors.push(`output pane collapsed in Sandbox mode: ${sand
 await page.click('#btn-sandbox');
 await page.waitForTimeout(120);
 
+// --- 9b. rearranging the tiles -------------------------------------------
+const tileBox = () => page.evaluate(() => {
+  const out = {};
+  for (const el of document.querySelectorAll('[data-tile]')) {
+    const r = el.getBoundingClientRect();
+    out[el.dataset.tile] = { x: Math.round(r.left), y: Math.round(r.top),
+                             w: Math.round(r.width), h: Math.round(r.height) };
+  }
+  return out;
+});
+const order = (boxes, axis) => Object.keys(boxes).sort((a, b) => boxes[a][axis] - boxes[b][axis]).join(' ');
+
+// The four arrows on a tile bar send that tile to an edge of the window.
+await page.click('[data-tile="sidebar"] .tile-move[data-move="right"]');
+await page.waitForTimeout(120);
+let tb = await tileBox();
+console.log('to right   :', order(tb, 'x'), `(exercise list at x=${tb.sidebar.x})`);
+if (tb.sidebar.x < tb.output.x) errors.push('the exercise list did not move to the right edge');
+
+await page.click('[data-tile="sidebar"] .tile-move[data-move="bottom"]');
+await page.waitForTimeout(120);
+tb = await tileBox();
+console.log('to bottom  :', order(tb, 'y'), `(exercise list at y=${tb.sidebar.y})`);
+if (tb.sidebar.y < tb.output.y) errors.push('the exercise list did not move to the bottom edge');
+if (Math.abs(tb.sidebar.w - tb.editor.w) > 2) errors.push('a tile at the bottom edge does not span the width');
+
+/**
+ * Pick a tile up by its bar and drop it at (fx, fy) of another tile, where
+ * both are fractions of that tile's box. Returns the drop hint that was on
+ * screen at the moment of the drop.
+ */
+async function dragTile(pane, onto, fx, fy, { cancel = false } = {}) {
+  const bar = await page.locator(`[data-tile="${pane}"] .tile-bar`).boundingBox();
+  const t = await page.locator(`[data-tile="${onto}"]`).boundingBox();
+  await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bar.x + bar.width / 2 + 24, bar.y + bar.height / 2 + 24, { steps: 4 });
+  await page.mouse.move(t.x + t.width * fx, t.y + t.height * fy, { steps: 10 });
+  const hint = await page.textContent('#dock-drop .dock-drop-label').catch(() => '(none)');
+  if (cancel) await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+  return hint;
+}
+
+// Dropped against an edge, a tile splits the tile it landed on.
+console.log('drop hint  :', await dragTile('editor', 'output', 0.08, 0.5));
+tb = await tileBox();
+console.log('side by side:', `editor ${tb.editor.w}px at x=${tb.editor.x}, results ${tb.output.w}px at x=${tb.output.x}`);
+if (tb.editor.x >= tb.output.x) errors.push('the editor did not land to the left of the results panel');
+if (Math.abs(tb.editor.y - tb.output.y) > 2) errors.push('the editor and the results panel are not side by side');
+
+// Dropped in the middle, the two tiles trade places.
+const beforeSwap = await tileBox();
+console.log('swap hint  :', await dragTile('prompt', 'output', 0.5, 0.5));
+tb = await tileBox();
+console.log('swapped    :', `prompt at (${tb.prompt.x},${tb.prompt.y}), results at (${tb.output.x},${tb.output.y})`);
+// Each ends up in the other's slot. Only the elastic tile's own size changes
+// with it, so the slot a swap lands in can be a little taller or shorter.
+if (!near(tb.prompt.x, beforeSwap.output.x, 2) || !near(tb.output.x, beforeSwap.prompt.x, 2) ||
+    !near(tb.output.y, beforeSwap.prompt.y, 2) || tb.prompt.y <= beforeSwap.prompt.y) {
+  errors.push('a centre drop did not swap the two tiles: ' + JSON.stringify(tb));
+}
+
+// An arrangement you have to rebuild every visit is not an arrangement.
+const wantTiles = await tileBox();
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForSelector('#topbar:not([hidden])', { timeout: 90000 });
+await page.waitForTimeout(150);
+const gotTiles = await tileBox();
+console.log('persisted  :', JSON.stringify(gotTiles) === JSON.stringify(wantTiles) ? 'same arrangement' : 'CHANGED');
+for (const pane of Object.keys(wantTiles)) {
+  if (!near(gotTiles[pane].x, wantTiles[pane].x, 2) || !near(gotTiles[pane].y, wantTiles[pane].y, 2)) {
+    errors.push(`${pane} moved across a reload: ${JSON.stringify(wantTiles[pane])} -> ${JSON.stringify(gotTiles[pane])}`);
+  }
+}
+
+// Escape during a drag must leave the layout exactly as it was.
+const beforeCancel = await tileBox();
+await dragTile('editor', 'sidebar', 0.5, 0.9, { cancel: true });
+if (JSON.stringify(await tileBox()) !== JSON.stringify(beforeCancel)) {
+  errors.push('Escape did not cancel the drag');
+}
+console.log('escape     : drag cancelled, layout untouched');
+
+// --- 9c. rearranging the output tabs -------------------------------------
+const tabNames = () => page.evaluate(() => [...document.querySelectorAll('.tab')].map(t => t.dataset.tab));
+const activeTab = () => page.evaluate(() => document.querySelector('.tab-on')?.dataset.tab);
+console.log('tabs       :', (await tabNames()).join(', '));
+
+await page.click('[data-tab="results"]');
+const schemaTab = await page.locator('.tab[data-tab="schema"]').boundingBox();
+const firstTab  = await page.locator('.tab[data-tab="results"]').boundingBox();
+await page.mouse.move(schemaTab.x + schemaTab.width / 2, schemaTab.y + schemaTab.height / 2);
+await page.mouse.down();
+await page.mouse.move(firstTab.x + 4, firstTab.y + firstTab.height / 2, { steps: 12 });
+await page.mouse.up();
+await page.waitForTimeout(120);
+const dragged = await tabNames();
+console.log('reordered  :', dragged.join(', '));
+if (dragged[0] !== 'schema') errors.push('dragging the Schema tab did not move it to the front: ' + dragged.join(','));
+// Rearranging is not selecting: the panel you were reading stays open.
+if (await activeTab() !== 'results') errors.push('dragging a tab also switched to it');
+
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForSelector('#topbar:not([hidden])', { timeout: 90000 });
+const keptTabs = await tabNames();
+console.log('tabs kept  :', keptTabs.join(', '));
+if (keptTabs.join() !== dragged.join()) errors.push(`tab order lost on reload: ${dragged.join()} -> ${keptTabs.join()}`);
+
+// Shift + arrow does the same thing from the keyboard.
+await page.locator('.tab[data-tab="schema"]').focus();
+await page.keyboard.press('Shift+ArrowRight');
+const nudged = await tabNames();
+console.log('shift+right:', nudged.join(', '));
+if (nudged[0] === 'schema') errors.push('shift+ArrowRight did not move the focused tab');
+
+// One button puts every tile and every tab back.
+await page.click('#btn-reset-layout');
+await page.waitForTimeout(150);
+tb = await tileBox();
+const resetTabs = await tabNames();
+console.log('reset      :', order(tb, 'x'), '|', resetTabs.join(', '));
+if (tb.sidebar.x !== 0 || tb.prompt.y >= tb.editor.y || tb.editor.y >= tb.output.y) {
+  errors.push('Reset layout did not restore the default arrangement: ' + JSON.stringify(tb));
+}
+if (resetTabs.join() !== 'results,feedback,portability,dialect,schema,activity') {
+  errors.push('Reset layout did not restore the tab order: ' + resetTabs.join());
+}
+
 // --- 10. comment toggle (Cmd/Ctrl + /) -----------------------------------
 await page.fill('#editor', 'SELECT 1\n  SELECT 2');
 await page.click('#editor');
