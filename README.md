@@ -162,6 +162,7 @@ declarations are informational metadata only.
 | Indent the lines the selection touches | `Tab` |
 | Dedent them again | `Shift + Tab` |
 | Undo / redo | `⌘/Ctrl + Z`, `⌘⇧Z / Ctrl + Y` |
+| Show / hide line numbers | the `#` button |
 | Next exercise | `⌘/Ctrl + Alt + ↓` |
 | Previous exercise | `⌘/Ctrl + Alt + ↑` |
 
@@ -186,13 +187,18 @@ exercise as a button.
 off; with nothing selected it inserts two spaces at the caret. It never replaces
 the selection, so tabbing a selected block cannot swallow it.
 
-Every edit the page makes to the editor — `Tab`, `⌘/`, and clicking a column in
-the Schema browser — goes in through the browser's own insert path rather than
-by assigning to `value`, which is what keeps `⌘Z` able to undo it.
+Every edit the page makes to the editor — `Tab`, `⌘/`, **Clear**, and clicking a
+column in the Schema browser — goes in through the browser's own insert path
+rather than by assigning to `value`, which is what keeps `⌘Z` able to undo it.
 
 `⌘/` comments the selected lines with `--`, and uncomments them when they are
 all already commented. The marker goes at the block's shallowest indent, so the
 shape of the query survives the round trip.
+
+The **`#`** button on the right of the editor toolbar turns on a line-number
+gutter. It follows the editor's vertical scroll, stays put horizontally so a
+long line slides underneath it rather than pushing it off, and the setting is
+remembered along with the theme and the pane sizes.
 
 Grading compares your **result set** against the reference, not your SQL text —
 any correct approach passes. Column *values* must match; column *names* are
