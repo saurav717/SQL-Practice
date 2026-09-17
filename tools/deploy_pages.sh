@@ -78,6 +78,25 @@ for js in "$DEST/assets/js/"*.js; do
 done
 [ "$missing" -eq 0 ] || exit 1
 
+# Cache-busting. GitHub Pages serves every asset with max-age=600 and no
+# fingerprint in the name, so a returning visitor can keep running the old
+# app.js for ten minutes after a deploy -- long enough to report a shipped fix
+# as missing. Stamping the URLs makes each build a new cache key, and the
+# <meta name="build"> tells you from view-source which build you are looking
+# at. The stamp covers the module graph too: app.js is the only file the page
+# names, but it pulls its siblings by relative URL.
+STAMP="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || date -u +%Y%m%d%H%M)"
+sed -i.bak "s|<link rel=\"stylesheet\" href=\"assets/css/app.css\">|<meta name=\"build\" content=\"$STAMP\">\n<link rel=\"stylesheet\" href=\"assets/css/app.css?v=$STAMP\">|; \
+            s|src=\"assets/js/app.js\"|src=\"assets/js/app.js?v=$STAMP\"|" "$DEST/index.html"
+rm -f "$DEST/index.html.bak"
+for js in "$DEST/assets/js/"*.js; do
+  sed -i.bak "s|from '\(\./[^']*\.js\)'|from '\1?v=$STAMP'|g" "$js"
+  rm -f "$js.bak"
+done
+grep -q "app.js?v=$STAMP" "$DEST/index.html" \
+  || { echo "error: failed to stamp the asset URLs"; exit 1; }
+echo "build:     $STAMP (stamped into every asset URL)"
+
 # The directory is called engine/, not vendor/: Jekyll's default exclude list
 # contains "vendor", and this is a Jekyll site.
 case "$(ls "$DEST")" in *vendor*) echo "error: vendor/ would be dropped by Jekyll"; exit 1;; esac
