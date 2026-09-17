@@ -159,7 +159,9 @@ declarations are informational metadata only.
 | Run every statement in the editor | `⌘/Ctrl + Alt + Enter` |
 | Check the answer | `⌘/Ctrl + Shift + Enter` |
 | Comment / uncomment the selected lines | `⌘/Ctrl + /` |
-| Indent | `Tab` |
+| Indent (the selected lines, or to the next tab stop) | `Tab` |
+| Dedent | `Shift + Tab` |
+| Undo / redo | `⌘/Ctrl + Z` / `⌘/Ctrl + Shift + Z` |
 | Next exercise | `⌘/Ctrl + Alt + ↓` |
 | Previous exercise | `⌘/Ctrl + Alt + ↑` |
 
@@ -183,6 +185,17 @@ exercise as a button.
 `⌘/` comments the selected lines with `--`, and uncomments them when they are
 all already commented. The marker goes at the block's shallowest indent, so the
 shape of the query survives the round trip.
+
+`Tab` indents every line a selection touches and `⇧Tab` takes a level back off,
+so `⌘A` then `Tab` shifts the whole query right instead of replacing it. With no
+selection, `Tab` pads to the next tab stop. Every edit the editor makes on your
+behalf — `Tab`, `⇧Tab`, `⌘/`, **Clear** — goes through the browser's own editing
+command, so `⌘Z` walks back through all of them.
+
+The **`#`** button on the right of the editor toolbar turns on a line-number
+gutter. It follows the editor's vertical scroll, stays put horizontally so a
+long line slides underneath it rather than pushing it off, and the setting is
+remembered along with the theme and the pane sizes.
 
 Grading compares your **result set** against the reference, not your SQL text —
 any correct approach passes. Column *values* must match; column *names* are

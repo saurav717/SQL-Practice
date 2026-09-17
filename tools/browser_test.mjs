@@ -345,6 +345,106 @@ const oneLine = await page.inputValue('#editor');
 console.log('one line   :', JSON.stringify(oneLine));
 if (oneLine !== '-- SELECT 1\nSELECT 2') errors.push('Ctrl+/ on a caret did not comment just that line: ' + JSON.stringify(oneLine));
 
+// --- 10b. Tab indents, and every editor edit stays undoable ---------------
+const editorValue = () => page.inputValue('#editor');
+
+// The bug this guards: Tab over a full selection replaced the query with two
+// spaces, and ⌘Z could not bring it back.
+await page.fill('#editor', 'SELECT 1\nFROM t\nWHERE x');
+await page.click('#editor');
+await page.keyboard.press('Control+a');
+await page.keyboard.press('Tab');
+const indented = await editorValue();
+console.log('tab block  :', JSON.stringify(indented));
+if (indented !== '  SELECT 1\n  FROM t\n  WHERE x') {
+  errors.push('Tab did not indent the selected block: ' + JSON.stringify(indented));
+}
+
+await page.keyboard.press('Shift+Tab');
+const dedented = await editorValue();
+console.log('shift-tab  :', JSON.stringify(dedented));
+if (dedented !== 'SELECT 1\nFROM t\nWHERE x') {
+  errors.push('Shift+Tab did not dedent the block: ' + JSON.stringify(dedented));
+}
+
+// Undo has to walk back through both of those.
+await page.keyboard.press('Control+z');
+const undo1 = await editorValue();
+await page.keyboard.press('Control+z');
+const undo2 = await editorValue();
+console.log('undo       :', JSON.stringify(undo1), '->', JSON.stringify(undo2));
+if (undo1 !== '  SELECT 1\n  FROM t\n  WHERE x') {
+  errors.push('undo did not restore the indented text: ' + JSON.stringify(undo1));
+}
+if (undo2 !== 'SELECT 1\nFROM t\nWHERE x') {
+  errors.push('undo did not reach the original text: ' + JSON.stringify(undo2));
+}
+
+// A caret inside one line pads to the next tab stop instead of indenting.
+await page.fill('#editor', 'SELECT 1\nFROM t');
+await page.evaluate(() => {
+  const e = document.querySelector('#editor');
+  e.focus(); e.setSelectionRange(3, 3);
+});
+await page.keyboard.press('Tab');
+const caretTab = await editorValue();
+console.log('tab caret  :', JSON.stringify(caretTab));
+if (caretTab !== 'SEL ECT 1\nFROM t') errors.push('Tab at a caret did not pad to the tab stop: ' + JSON.stringify(caretTab));
+
+// ⌘/ has to be undoable too -- it went through the same broken path.
+await page.fill('#editor', 'SELECT 1');
+await page.click('#editor');
+await page.keyboard.press('Control+Slash');
+await page.keyboard.press('Control+z');
+const undoComment = await editorValue();
+console.log('undo ⌘/    :', JSON.stringify(undoComment));
+if (undoComment !== 'SELECT 1') errors.push('undo did not reverse the comment toggle: ' + JSON.stringify(undoComment));
+
+// Clear empties the editor through the same path, so that is undoable too.
+await page.fill('#editor', 'SELECT 1 FROM t');
+await page.click('#btn-clear');
+if ((await editorValue()) !== '') errors.push('Clear did not empty the editor');
+await page.keyboard.press('Control+z');
+const undoClear = await editorValue();
+console.log('undo clear :', JSON.stringify(undoClear));
+if (undoClear !== 'SELECT 1 FROM t') errors.push('undo did not bring back a cleared editor: ' + JSON.stringify(undoClear));
+
+// --- 10c. line-number gutter ---------------------------------------------
+const gutterText = () => page.evaluate(() => {
+  const g = document.querySelector('#editor-gutter');
+  return g.hidden ? null : g.innerText.trim().split(/\s+/);
+});
+await page.fill('#editor', 'SELECT 1\nFROM t\nWHERE x\nLIMIT 1');
+if ((await gutterText()) !== null) errors.push('the gutter is showing before it was turned on');
+await page.click('#btn-lines');
+const nums = await gutterText();
+console.log('gutter     :', nums && nums.join(' '));
+if (!nums || nums.join(' ') !== '1 2 3 4') errors.push('the gutter does not number the lines: ' + JSON.stringify(nums));
+
+// It has to keep up as the query grows.
+await page.fill('#editor', Array.from({ length: 12 }, (_, i) => `SELECT ${i}`).join('\n'));
+const grown = await gutterText();
+console.log('grew to    :', grown && grown.length, 'numbers');
+if (!grown || grown.length !== 12) errors.push('the gutter did not follow the new line count: ' + JSON.stringify(grown));
+
+// And the text has to move out from under it, not hide behind it.
+const clearsGutter = await page.evaluate(() => {
+  const g = document.querySelector('#editor-gutter').getBoundingClientRect();
+  const pad = parseFloat(getComputedStyle(document.querySelector('#editor')).paddingLeft);
+  const wrap = document.querySelector('.editor-wrap').getBoundingClientRect();
+  return wrap.left + pad >= g.right;
+});
+if (!clearsGutter) errors.push('the editor text starts underneath the line-number gutter');
+
+// The setting is a preference, so it survives a reload.
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForSelector('#topbar:not([hidden])', { timeout: 90000 });
+const stillOn = await page.locator('#editor-gutter').isVisible();
+console.log('persisted  :', stillOn ? 'gutter still on' : 'GUTTER LOST');
+if (!stillOn) errors.push('the line-number setting did not survive a reload');
+await page.click('#btn-lines');                       // back off for the shots
+if (await page.locator('#editor-gutter').isVisible()) errors.push('the gutter did not turn off again');
+
 // --- 11. run the statement at the cursor ---------------------------------
 const script = 'SELECT 111 AS a;\n\nSELECT 222 AS b;\n';
 const caretTo = (pos) => page.evaluate((p) => {
