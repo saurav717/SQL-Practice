@@ -157,6 +157,27 @@ await page.click('#btn-hint');
 await page.waitForSelector('.hint', { timeout: 5000 });
 console.log('hint       :', (await page.textContent('.hint')).replace(/\s+/g, ' ').slice(0, 80));
 
+// --- 7b. solution box: opens, closes, and leaves the draft alone ----------
+const myDraft = 'SELECT my_own_attempt;';
+await page.fill('#editor', myDraft);
+await page.click('#btn-solution');            // already solved above, so no confirm
+await page.waitForSelector('#solution:not([hidden])', { timeout: 5000 });
+if ((await page.inputValue('#editor')) !== myDraft) errors.push('Show solution overwrote the editor');
+await page.click('#btn-solution-hide');
+if (await page.isVisible('#solution')) errors.push('the box\'s Hide button did not close the solution');
+await page.click('#btn-solution');
+await page.click('#btn-solution');
+if (await page.isVisible('#solution')) errors.push('the toolbar button did not close the solution');
+
+await page.click('#btn-solution');
+page.once('dialog', d => d.accept());         // "replace what is in the editor?"
+await page.click('#btn-solution-copy');
+const copied = await page.inputValue('#editor');
+if (copied === myDraft || !/COUNT/i.test(copied)) errors.push('Copy to editor did not load the reference solution');
+console.log('solution   : toggles, draft survives, copy is opt-in');
+await page.click('#btn-solution');            // closed again for the steps below
+await page.fill('#editor', solution);
+
 // --- 8. activity log ------------------------------------------------------
 await page.click('[data-tab="activity"]');
 await page.waitForSelector('#act-logging', { timeout: 5000 });
