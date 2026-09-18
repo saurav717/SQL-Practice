@@ -110,6 +110,9 @@ async function boot(url) {
   await p.click('#btn-assistant');
   await p.waitForSelector('.chat-card', { timeout: 5000 });
   ok('opening it shows the key card', await p.locator('#chat-key-input').isVisible());
+  // The card is taller than the panel, so where it opens matters: scrolled to
+  // the bottom, the heading saying what the key is for is off-screen.
+  ok('the key card opens at its top', await p.evaluate(() => document.querySelector('#chat-body').scrollTop === 0));
   ok('the composer is disabled until there is a key', await p.locator('#chat-input').isDisabled());
   ok('no page errors on the key path', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
 
@@ -142,6 +145,12 @@ async function boot(url) {
 
   const reply = await p.locator('.chat-claude .chat-text').innerText();
   ok('the streamed answer is rendered', reply.includes('Use a frame'));
+
+  // Visibility, not the `hidden` property: an author rule that sets `display`
+  // beats the browser's own [hidden] rule, so Stop sat next to Send while
+  // every property-level assertion read exactly right.
+  ok('Stop is gone once the answer is in', !(await p.locator('#chat-stop').isVisible()));
+  ok('Send is back', await p.locator('#chat-send').isVisible());
   ok('its SQL is rendered as a code block', (await p.locator('.chat-claude pre code').count()) === 1);
   ok('the answer keeps its inline code', (await p.locator('.chat-claude .chat-text code').count()) >= 1);
 
