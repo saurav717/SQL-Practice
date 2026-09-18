@@ -161,48 +161,98 @@ await page.waitForTimeout(150);
 // --- driven from the keyboard ---------------------------------------------
 //
 // A window you can only move with the pointer is a window you stop moving.
-// cmd/ctrl + an arrow throws it at that edge; the same arrow again cycles the
-// fraction it takes there; cmd/ctrl + shift + an arrow slides it a little.
+// cmd/ctrl + an arrow moves it that way and keeps moving it while the key is
+// held; cmd/ctrl + shift + an arrow is the tiling gesture -- it throws the
+// window at that edge and cycles the fraction it takes there.
 const work = { w: VIEW.width - 2 * 10, h: VIEW.height - 62 - 10 };
+
+// --- cmd + arrow moves, and only moves ------------------------------------
+// From its home column, so there is room to move in every direction: the
+// drag tests above left it pinned against the left edge, and a window that
+// cannot move left proves nothing about moving left.
+await page.dblclick('[data-tile="assistant"] .tile-name');
+await page.waitForTimeout(200);
+const rest = await box();
 await page.keyboard.press('Control+ArrowLeft');
+await page.waitForTimeout(400);      // longer than RUN_GAP: one tap, not a run
+const tapped = await box();
+ok('cmd+left moves it left without resizing it',
+   tapped.x < rest.x && tapped.x > rest.x - 120 &&
+   tapped.w === rest.w && tapped.h === rest.h,
+   `${rest.x} -> ${tapped.x}`);
+
+await page.keyboard.press('Control+ArrowDown');
+await page.waitForTimeout(400);
+const down = await box();
+ok('cmd+down moves it down, still the same size',
+   down.y > tapped.y && down.w === tapped.w && down.h === tapped.h,
+   `${tapped.y} -> ${down.y}`);
+
+// A second tap in the same direction keeps going rather than parking it
+// somewhere: this is the whole complaint the binding was changed to fix.
+await page.keyboard.press('Control+ArrowLeft');
+await page.waitForTimeout(400);
+const again = await box();
+ok('pressing the same arrow again keeps moving it',
+   again.x < tapped.x && again.w === tapped.w, `${tapped.x} -> ${again.x}`);
+
+// Held down, the step grows: a run of presses covers much more ground than
+// the same number of separate taps would. Leftwards, where the whole width
+// of the workspace is free -- against an edge every step is worth nothing
+// and the run would prove only that the clamp works.
+const runStart = await box();
+for (let i = 0; i < 6; i++) await page.keyboard.press('Control+ArrowLeft');
+await page.waitForTimeout(400);
+const ran = await box();
+ok('a held arrow accelerates', runStart.x - ran.x > 6 * 44,
+   `${runStart.x} -> ${ran.x} in 6 presses`);
+
+// Into the edge and past it: it stops at the edge rather than walking off,
+// and it is still the size it started.
+for (let i = 0; i < 60; i++) await page.keyboard.press('Control+ArrowLeft');
+await page.waitForTimeout(400);
+const pinned = await box();
+ok('moving into the edge stops there', pinned.x >= 8 && pinned.x <= 12,
+   JSON.stringify(pinned));
+ok('moving never resizes it', pinned.w === rest.w && pinned.h === rest.h,
+   `${rest.w}x${rest.h} -> ${pinned.w}x${pinned.h}`);
+
+// --- cmd + shift + arrow still tiles --------------------------------------
+await page.keyboard.press('Control+Shift+ArrowLeft');
 await page.waitForTimeout(120);
 const half = await box();
-ok('cmd+left throws it at the left edge',
+ok('cmd+shift+left throws it at the left edge',
    half.x <= 12 && Math.abs(half.w - work.w / 2) < 14 && Math.abs(half.h - work.h) < 14,
    JSON.stringify(half));
 
-await page.keyboard.press('Control+ArrowLeft');
+await page.keyboard.press('Control+Shift+ArrowLeft');
 await page.waitForTimeout(120);
 const third = await box();
 ok('pressing it again cycles to a third',
    third.x <= 12 && Math.abs(third.w - work.w / 3) < 14, JSON.stringify(third));
 
-await page.keyboard.press('Control+ArrowRight');
+await page.keyboard.press('Control+Shift+ArrowRight');
 await page.waitForTimeout(120);
 const right = await box();
 ok('a different arrow starts over at a half, on that edge',
    Math.abs((right.x + right.w) - (VIEW.width - 10)) < 12 &&
    Math.abs(right.w - work.w / 2) < 14, JSON.stringify(right));
 
-await page.keyboard.press('Control+ArrowDown');
+await page.keyboard.press('Control+Shift+ArrowDown');
 await page.waitForTimeout(120);
 const low = await box();
-ok('cmd+down takes the bottom half',
+ok('cmd+shift+down takes the bottom half',
    Math.abs((low.y + low.h) - (VIEW.height - 10)) < 12 &&
    Math.abs(low.h - work.h / 2) < 14, JSON.stringify(low));
 
-await page.keyboard.press('Control+Shift+ArrowUp');
-await page.waitForTimeout(120);
-const nudged = await box();
-ok('cmd+shift+up nudges it without resizing it',
-   nudged.y < low.y && nudged.h === low.h && nudged.w === low.w,
-   `${low.y} -> ${nudged.y}`);
-
-// Holding it against an edge must stop at the edge, not walk off the page.
-for (let i = 0; i < 40; i++) await page.keyboard.press('Control+Shift+ArrowLeft');
-await page.waitForTimeout(150);
-const pinned = await box();
-ok('nudging into the edge stops there', pinned.x >= 8, JSON.stringify(pinned));
+// And a plain cmd + arrow from there moves that window rather than resizing
+// it back: a snap is a position, not a mode.
+await page.keyboard.press('Control+ArrowUp');
+await page.waitForTimeout(400);
+const lifted = await box();
+ok('cmd+up moves a snapped window instead of re-snapping it',
+   lifted.y < low.y && lifted.w === low.w && lifted.h === low.h,
+   `${low.y} -> ${lifted.y}`);
 
 // The editor keeps its own arrows: cmd+left is caret movement there, and
 // nothing about this window is worth breaking that for.
@@ -215,7 +265,7 @@ ok('the editor keeps cmd+arrow for its caret',
    JSON.stringify(await box()) === JSON.stringify(beforeEditor));
 await page.locator('#chat-input').focus();
 await page.keyboard.press('Control+ArrowUp');
-await page.waitForTimeout(120);
+await page.waitForTimeout(400);      // past RUN_GAP, so the move has persisted
 const kept2 = await box();
 
 // --- and it is still there after a reload ---------------------------------

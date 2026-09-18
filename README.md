@@ -166,6 +166,8 @@ declarations are informational metadata only.
 | Previous exercise | `⌘/Ctrl + Alt + ↑` |
 | Resize a focused seam | `←/→` or `↑/↓` (`Home`/`End`) |
 | Move a focused results tab | `Shift + ←/→` |
+| Move the Claude window | `⌘/Ctrl + ←↑→↓` (hold to keep going) |
+| Throw it at an edge | `⌘/Ctrl + Shift + ←↑→↓` |
 
 **Run acts on one statement**, the way a Snowflake worksheet does: the one the
 cursor is sitting in. Keep scratch work above your answer, separated by `;`, and
@@ -290,6 +292,15 @@ Move it by dragging its title bar, resize it from any edge or corner, and
 double-click the title bar to send it back to its column — double-click again
 and it fills the workspace. Where you leave it, how big, how transparent and
 which frame it wears are all remembered per browser.
+
+From the keyboard, `⌘/Ctrl + an arrow` **moves** it that way — a tap shifts it
+a little, holding the key flies it across the page, accelerating as it goes,
+and it stops the moment you let go, at the size it already was. It never walks
+off the page. `⌘/Ctrl + Shift + an arrow` is the tiling gesture instead:
+it throws the window at that edge, and pressing the same arrow again cycles
+the fraction it takes there — half, a third, two thirds. The editor keeps its
+own arrows, since `⌘←`/`⌘→` is caret movement there; everywhere else — the
+chat box, the thread, the results — the arrows drive the window.
 
 The title bar carries three controls:
 
