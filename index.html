@@ -78,6 +78,10 @@
                 title="Move the exercise list to the right edge"
                 aria-label="Move the exercise list to the right edge">→</button>
       </span>
+      <span class="tile-zoomer">
+        <button type="button" class="tile-move" data-zoom aria-pressed="false"
+                title="Expand this panel to fill the workspace">⤢</button>
+      </span>
     </div>
     <div class="sidebar-head">
       <input id="search" type="search" placeholder="Filter exercises…" autocomplete="off">
@@ -110,6 +114,10 @@
         <button type="button" class="tile-move" data-move="right"
                 title="Move the exercise prompt to the right edge"
                 aria-label="Move the exercise prompt to the right edge">→</button>
+      </span>
+      <span class="tile-zoomer">
+        <button type="button" class="tile-move" data-zoom aria-pressed="false"
+                title="Expand this panel to fill the workspace">⤢</button>
       </span>
     </div>
     <div class="prompt-body">
@@ -146,6 +154,10 @@
                 title="Move the editor to the right edge"
                 aria-label="Move the editor to the right edge">→</button>
       </span>
+      <span class="tile-zoomer">
+        <button type="button" class="tile-move" data-zoom aria-pressed="false"
+                title="Expand this panel to fill the workspace">⤢</button>
+      </span>
     </div>
     <div class="toolbar">
       <button id="btn-run" class="btn btn-primary"
@@ -158,13 +170,16 @@
       <button id="btn-hint"     class="btn btn-ghost">Hint</button>
       <button id="btn-solution" class="btn btn-ghost">Show solution</button>
       <button id="btn-clear"    class="btn btn-ghost" title="Clear the editor">Clear</button>
+      <button id="btn-lines"    class="btn btn-ghost btn-icon" aria-pressed="false"
+              title="Show or hide line numbers">#</button>
     </div>
 
     <div class="editor-wrap">
+      <div id="editor-gutter" class="editor-gutter" aria-hidden="true" hidden><div id="editor-gutter-lines"></div></div>
       <pre id="editor-highlight" class="editor-layer" aria-hidden="true"></pre>
       <textarea id="editor" class="editor-layer editor-input" spellcheck="false"
                 autocomplete="off" autocapitalize="off" autocorrect="off"
-                placeholder="Write your query here. ⌘↵ runs the statement at the cursor, ⌘⇧↵ checks it, ⌘/ comments a line."></textarea>
+                placeholder="Write your query here. ⌘↵ runs the statement at the cursor, ⌘⇧↵ checks it, ⌘/ comments a line, Tab / ⇧Tab indents."></textarea>
     </div>
 
     <div id="hints" class="hints" hidden></div>
@@ -173,7 +188,7 @@
 
 
   <article class="pane tile assistant-pane" data-tile="assistant">
-    <div class="tile-bar" title="Drag to move this panel; drop it against any edge">
+    <div class="tile-bar" title="Drag to move this window · ⌘ + an arrow throws it at an edge · ⌘⇧ + an arrow nudges it · double-click to zoom">
       <span class="tile-grip" aria-hidden="true">⠿</span>
       <span class="tile-name">Ask Claude</span>
       <span class="tile-moves">
@@ -189,6 +204,10 @@
         <button type="button" class="tile-move" data-move="right"
                 title="Move the Claude panel to the right edge"
                 aria-label="Move the Claude panel to the right edge">→</button>
+      </span>
+      <span class="tile-zoomer">
+        <button type="button" class="tile-move" data-zoom aria-pressed="false"
+                title="Expand this panel to fill the workspace">⤢</button>
       </span>
       <!-- Window controls. The float toggle and the close button are always
            here; the transparency slider and the style button only mean
@@ -250,6 +269,10 @@
         <button type="button" class="tile-move" data-move="right"
                 title="Move the results panel to the right edge"
                 aria-label="Move the results panel to the right edge">→</button>
+      </span>
+      <span class="tile-zoomer">
+        <button type="button" class="tile-move" data-zoom aria-pressed="false"
+                title="Expand this panel to fill the workspace">⤢</button>
       </span>
     </div>
     <div class="tabs" id="tabs" title="Drag a tab sideways to reorder it">

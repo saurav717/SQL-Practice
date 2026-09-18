@@ -25,5 +25,7 @@ echo "== Ask Claude panel streams, renders and sends only what is switched on ==
 node tools/check_assistant.mjs
 echo "== the Claude window drags, resizes, docks and is where you left it =="
 node tools/check_window.mjs
+echo "== every pane resizes, expands to fill the workspace and comes back =="
+node tools/check_panes.mjs
 echo
 echo "All checks passed."
