@@ -30,7 +30,7 @@ function loadState() {
   const base = {
     solved: {}, attempted: {}, revealed: {}, drafts: {},
     hintsShown: {}, hintsHidden: {}, solutionHidden: {},
-    engine: 'redshift', theme: 'dark',
+    engine: 'redshift', theme: 'dark', lineNumbers: false,
     current: EXERCISES[0].id, layout: {}, tabOrder: [], assistantOpen: false,
     // The Claude panel remembers whether it was a window, where that window
     // sat and how far you could see through it.
@@ -138,6 +138,9 @@ function highlightSQL(code) {
 // ---------------------------------------------------------------------------
 const editor = $('#editor');
 const highlightLayer = $('#editor-highlight');
+const editorWrap = $('.editor-wrap');
+const gutter = $('#editor-gutter');
+const gutterLines = $('#editor-gutter-lines');
 
 /**
  * What Run acts on, Snowflake-worksheet style: the selection if there is one,
@@ -161,6 +164,33 @@ function runTarget() {
 function syncScroll() {
   highlightLayer.scrollTop = editor.scrollTop;
   highlightLayer.scrollLeft = editor.scrollLeft;
+  // The gutter follows the vertical scroll but never the horizontal one, so
+  // the numbers stay put while a long line slides underneath them.
+  gutterLines.style.transform = `translateY(${-editor.scrollTop}px)`;
+}
+
+/**
+ * Redraw the line-number gutter. Its width is in `ch` of the same mono font,
+ * so passing 100 lines widens the column by exactly one digit.
+ */
+function paintGutter() {
+  if (!state.lineNumbers) return;
+  const n = editor.value.split('\n').length;
+  let out = '';
+  for (let i = 1; i <= n; i++) out += `${i}\n`;
+  gutterLines.textContent = out;
+  // On the wrap, because the text layers pad themselves clear of it too.
+  editorWrap.style.setProperty('--gutter-digits', String(n).length);
+}
+
+/** Show or hide the gutter, and put the toolbar toggle in the matching state. */
+function applyLineNumbers() {
+  editorWrap.classList.toggle('with-gutter', state.lineNumbers);
+  gutter.hidden = !state.lineNumbers;
+  const btn = $('#btn-lines');
+  btn.classList.toggle('btn-on', state.lineNumbers);
+  btn.setAttribute('aria-pressed', String(state.lineNumbers));
+  if (state.lineNumbers) { paintGutter(); syncScroll(); }
 }
 
 /** Signature of the marked range, so we only repaint when it actually moves. */
@@ -177,6 +207,7 @@ function paintEditor() {
       + highlightSQL(text.slice(t.end))
     : highlightSQL(text);
   paintedTarget = t ? `${t.start}:${t.end}:${t.total}` : '';
+  paintGutter();
   syncScroll();
   renderRunTargetLabel(t);
 }
@@ -208,7 +239,13 @@ function writeRange(start, end, text, selStart, selEnd) {
   editor.focus();
   editor.setSelectionRange(start, end);
   let wrote = false;
-  try { wrote = document.execCommand('insertText', false, text); } catch { wrote = false; }
+  try {
+    // insertText does not reliably delete on an empty string, and Clear needs
+    // an empty replacement to land -- undoably.
+    wrote = text === ''
+      ? document.execCommand('delete')
+      : document.execCommand('insertText', false, text);
+  } catch { wrote = false; }
   if (!wrote) {
     editor.setRangeText(text, start, end, 'end');
     editor.dispatchEvent(new Event('input'));   // insertText fires this itself
@@ -1116,7 +1153,19 @@ function wire() {
     editor.focus();
   });
 
-  $('#btn-clear').addEventListener('click', () => { setEditor(''); editor.focus(); });
+  // Through writeRange, not setEditor: emptying the editor by accident and
+  // having ⌘Z do nothing is the same trap Tab used to be.
+  $('#btn-clear').addEventListener('click', () => {
+    if (editor.value) writeRange(0, editor.value.length, '', 0, 0);
+    editor.focus();
+  });
+
+  $('#btn-lines').addEventListener('click', () => {
+    state.lineNumbers = !state.lineNumbers;
+    saveState();
+    applyLineNumbers();
+  });
+  applyLineNumbers();
 
   $('#btn-assistant').addEventListener('click', () => {
     setAssistantOpen(!state.assistantOpen);
