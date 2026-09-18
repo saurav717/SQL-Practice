@@ -1,0 +1,19 @@
+name = "sql-practice-claude"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+# Origins allowed to POST. Anything else gets a 403 and nothing is forwarded.
+# An empty list fails closed -- the endpoint proxies for nobody until this is
+# set, which is the right default for something that spends money.
+[vars]
+ALLOWED_ORIGINS = "https://saurav717.github.io"
+
+# Per-address rate limiting. Optional: without this binding the Worker still
+# runs, it just stops counting. Create with:
+#   wrangler kv namespace create sql-practice-claude-rate
+[[kv_namespaces]]
+binding = "RATE"
+id = "PASTE_NAMESPACE_ID_HERE"
+
+# The key itself is a secret, never a var:
+#   wrangler secret put ANTHROPIC_API_KEY

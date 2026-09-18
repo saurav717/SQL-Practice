@@ -15,7 +15,7 @@ DEST="$PAGES/sql-practice"
 [ -f "$PAGES/_config.yml" ] || { echo "error: $PAGES does not look like the Jekyll site"; exit 1; }
 
 rm -rf "$DEST"
-mkdir -p "$DEST/assets/css" "$DEST/assets/js" "$DEST/assets/data" "$DEST/engine/duckdb"
+mkdir -p "$DEST/assets/css" "$DEST/assets/js" "$DEST/assets/data" "$DEST/engine/duckdb" "$DEST/engine/anthropic"
 
 cp "$SRC/assets/css/app.css"                        "$DEST/assets/css/"
 # Every module, not a hand-kept list: app.js imports its siblings, so one
@@ -26,6 +26,10 @@ cp "$SRC/assets/data/"*.sql                         "$DEST/assets/data/"
 cp "$SRC/engine/duckdb/duckdb-browser.bundle.mjs"   "$DEST/engine/duckdb/"
 # .txt, not .md: Jekyll processes Markdown, and this is a Jekyll site.
 cp "$SRC/engine/duckdb/NOTICE.md"                   "$DEST/engine/duckdb/NOTICE.txt"
+# The Anthropic SDK ships whole and local -- unlike DuckDB it is 185 KB, not
+# 36 MB, and assistant.js imports it only when someone opens the panel.
+cp "$SRC/engine/anthropic/anthropic-browser.bundle.mjs" "$DEST/engine/anthropic/"
+cp "$SRC/engine/anthropic/NOTICE.md"                    "$DEST/engine/anthropic/NOTICE.txt"
 
 # Pin the deployed copy to the CDN so it never looks for files it does not ship.
 sed 's|<script type="module" src="assets/js/app.js">|<script type="module" data-engine-source="cdn" src="assets/js/app.js">|' \
@@ -65,6 +69,31 @@ if [ -n "${COLLECTOR_ENDPOINT:-}" ]; then
 else
   echo "collector: none set (COLLECTOR_ENDPOINT unset -- visits will not be logged)"
 fi
+
+# Point the Ask Claude panel at a proxy that holds the API key, if one is
+# deployed. Unset -- which is the default, and the right one -- means the
+# panel asks each visitor for their own key instead, and this site pays for
+# nothing. See proxy/README.md.
+if [ -n "${CLAUDE_ENDPOINT:-}" ]; then
+  case "$CLAUDE_ENDPOINT" in
+    https://*) ;;
+    *) echo "error: CLAUDE_ENDPOINT must be an https:// URL"; exit 1 ;;
+  esac
+  sed -i.bak "s|<meta name=\"claude-endpoint\" content=\"\">|<meta name=\"claude-endpoint\" content=\"$CLAUDE_ENDPOINT\">|" \
+      "$DEST/index.html"
+  rm -f "$DEST/index.html.bak"
+  grep -qF "claude-endpoint\" content=\"$CLAUDE_ENDPOINT" "$DEST/index.html" \
+    || { echo "error: failed to inject the Claude endpoint"; exit 1; }
+  echo "claude:    $CLAUDE_ENDPOINT (visitors need no key of their own)"
+else
+  echo "claude:    no proxy set (visitors supply their own Anthropic API key)"
+fi
+
+# assistant.js loads the SDK by URL rather than by a static import, so the
+# import guard below cannot see it. Checked here instead: a missing bundle is
+# silent at deploy time and kills the panel the first time someone uses it.
+[ -f "$DEST/engine/anthropic/anthropic-browser.bundle.mjs" ] \
+  || { echo "error: the Anthropic SDK bundle did not deploy"; exit 1; }
 
 # Every relative import in the deployed JS must resolve to a file that shipped.
 # A missing module is silent at deploy time and fatal in the browser.

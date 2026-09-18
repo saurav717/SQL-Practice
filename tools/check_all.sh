@@ -19,5 +19,9 @@ echo "== both engine sources (vendored + CDN) boot and query =="
 node tools/check_engine_source.mjs
 echo "== visit collector logs the edge address, not the payload =="
 node tools/check_collector.mjs
+echo "== Claude proxy refuses what it should and forwards only what it must =="
+node tools/check_proxy.mjs
+echo "== Ask Claude panel streams, renders and sends only what is switched on =="
+node tools/check_assistant.mjs
 echo
 echo "All checks passed."
