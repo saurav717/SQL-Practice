@@ -23,5 +23,7 @@ echo "== Claude proxy refuses what it should and forwards only what it must =="
 node tools/check_proxy.mjs
 echo "== Ask Claude panel streams, renders and sends only what is switched on =="
 node tools/check_assistant.mjs
+echo "== the Claude window drags, resizes, docks and is where you left it =="
+node tools/check_window.mjs
 echo
 echo "All checks passed."

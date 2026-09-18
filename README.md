@@ -238,9 +238,10 @@ no card at all.
 ### Rearranging the panels
 
 The window is five tiles — **Exercises**, **Exercise**, **Editor**,
-**Results** and **Ask Claude** — and you decide where each one goes. The Claude
-panel starts closed and everything else starts where it always has; the other
-four never notice it until you open it. Every tile carries a thin bar with a
+**Results** and **Ask Claude** — and you decide where each one goes. Claude
+starts closed, and opens as a floating window rather than a fifth tile (see
+[Ask Claude](#ask-claude)), so the other four never notice it either way; dock
+it with **⊟** and it joins the tree like anything else. Every tile carries a thin bar with a
 grip on the left:
 
 * **Drag the bar** and drop the tile against the **left, right, top or bottom**
@@ -270,17 +271,43 @@ extremes). Sizes are in pixels and are remembered per browser, so the editor doe
 not re-scale every time the window changes height. Each tile has a floor that a
 drag cannot push past, so nothing can be collapsed to nothing — and in every
 split, the tile holding the results grid is the elastic one, so a window resize
-lands there instead of re-shuffling everything you set. (The Claude panel is
+lands there instead of re-shuffling everything you set. (A docked Claude panel is
 never the elastic one: it sits at the end of the row it shares with the editor,
 and a wider window should widen the editor, not the side panel.) Below 1000px wide the
 tiles stack and size themselves, and the handles go away.
 
 ### Ask Claude
 
-**Ask Claude** in the top bar opens a chat panel docked to the right of the
-editor — drag it anywhere the other tiles go, or close it again and the editor
-takes the width back. Ask why a window frame is off, what `QUALIFY` does, or
-what is wrong with the query you have open.
+**Ask Claude** in the top bar — or `⌘\` / `Ctrl+\` from anywhere — opens a
+chat **window** over the workspace. Not a panel: it floats, so the editor and
+the results keep their full width, and it is translucent, so the query you are
+asking about stays readable underneath it. `Esc` puts it away, and `⌘J` still
+toggles it too: that was the first binding and some fingers know it. Ask why a window
+frame is off, what `QUALIFY` does, or what is wrong with the query you have
+open.
+
+Move it by dragging its title bar, resize it from any edge or corner, and
+double-click the title bar to send it back to its column — double-click again
+and it fills the workspace. Where you leave it, how big, how transparent and
+which frame it wears are all remembered per browser.
+
+The title bar carries three controls:
+
+* **The transparency slider** — from barely-there to solid. Double-click it to
+  return to the default. Unfocused, the window fades back a little further on
+  its own, the way an unfocused terminal does.
+* **◆ style** — cycles four frames: **Frosted** (the default: a wide blur
+  doing the work, so text never fights the backdrop), **Clear** (least opacity,
+  widest blur), **Terminal** (macOS Terminal with transparency turned up,
+  traffic lights included) and **Aurora** (the same glass with the accent bled
+  into the rim). Each frame moves the slider to the transparency it was drawn
+  for; move it again afterwards if you disagree.
+* **⊟ dock** — puts it back in the tiled layout as an ordinary tile beside the
+  editor, where it behaves exactly like the other four and costs the editor
+  width again. **⧉** floats it once more.
+
+Below 1000px wide there is no workspace to float over, so it stacks with
+everything else whatever you last chose.
 
 Each message can carry context, and you choose what: the **warehouse schema**,
 the **current exercise**, the **editor contents**, and the **last result or
@@ -418,6 +445,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 | `tools/check_collector.mjs` | the visit collector logs the edge address (never the payload), enforces its origin allowlist, and prunes on schedule |
 | `tools/check_proxy.mjs` | the Claude proxy's guards: origin allowlist, model allowlist, `max_tokens` ceiling, rate limit, and that it rebuilds the request body rather than forwarding it |
 | `tools/check_assistant.mjs` | the Claude panel end to end against a fake Anthropic: it streams, renders, inserts SQL into the editor, and sends only the context that is switched on |
+| `tools/check_window.mjs` | the Claude window as a window: it costs the layout nothing, drags, resizes from every edge without the opposite edge wandering, cannot be dragged off the page, docks, and is where you left it after a reload |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,
 `assets/data/schema.sql`, or `tools/gen_seed.mjs`.
@@ -451,7 +479,7 @@ querying.
 
 ```
 index.html                    single page
-assets/css/app.css            dark/light theme
+assets/css/app.css            the glass material: dark/light theme, backdrop, tiles
 assets/js/engine.js           DuckDB boot, execution, grading, portability linter
 assets/js/curriculum.js       all 61 exercises + tracks + dialect notes
 assets/js/app.js              UI: editor, highlighting, grid, progress
@@ -460,6 +488,7 @@ assets/js/layout.js           the tile tree: drag-to-rearrange, splitters, tab o
 assets/js/schema-doc.js       table purposes, schema.sql note parser, join keys
 assets/js/tabletip.js         the table hover card (chips, prompt triggers, positioning)
 assets/js/assistant.js        the Ask Claude panel: auth, context, streaming, rendering
+assets/js/float.js            the floating window: move, resize, tint, frame, persistence
 assets/data/schema.sql        20 annotated tables
 assets/data/seed.sql          generated, deterministic (2.2 MB)
 assets/data/compat.sql        Snowflake/Redshift function shims
