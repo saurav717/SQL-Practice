@@ -291,10 +291,10 @@ if (!fits(fitA)) errors.push(`prompt pane does not fit its text: ${JSON.stringif
 // The prompt seam, and the editor growing with its pane.
 const promptBefore = (await rect('.prompt-pane')).h;
 const wrapBefore   = (await rect('.editor-wrap')).h;
-await dragBy('#split-prompt', 0, 60);
+await dragBy('#split-prompt', 0, -60);
 const promptAfter = (await rect('.prompt-pane')).h;
-console.log('prompt pane:', `${promptBefore}px -> ${promptAfter}px (dragged +60)`);
-if (!near(promptAfter, promptBefore + 60)) errors.push(`prompt pane did not follow the drag: ${promptBefore} -> ${promptAfter}`);
+console.log('prompt pane:', `${promptBefore}px -> ${promptAfter}px (dragged -60)`);
+if (!near(promptAfter, promptBefore - 60)) errors.push(`prompt pane did not follow the drag: ${promptBefore} -> ${promptAfter}`);
 
 // Once dragged, it stays put -- auto-fit must not overrule the user.
 await page.locator('.ex-item').nth(3).click();
@@ -465,7 +465,7 @@ await page.waitForTimeout(150);
 tb = await tileBox();
 const resetTabs = await tabNames();
 console.log('reset      :', order(tb, 'x'), '|', resetTabs.join(', '));
-if (tb.sidebar.x !== 0 || tb.prompt.y >= tb.editor.y || tb.editor.y >= tb.output.y) {
+if (tb.sidebar.x >= tb.prompt.x || tb.prompt.y >= tb.editor.y || tb.editor.y >= tb.output.y) {
   errors.push('Reset layout did not restore the default arrangement: ' + JSON.stringify(tb));
 }
 if (resetTabs.join() !== 'results,feedback,portability,dialect,schema,activity') {

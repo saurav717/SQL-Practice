@@ -451,7 +451,7 @@ querying.
 
 ```
 index.html                    single page
-assets/css/app.css            dark/light theme
+assets/css/app.css            the glass material: dark/light theme, backdrop, tiles
 assets/js/engine.js           DuckDB boot, execution, grading, portability linter
 assets/js/curriculum.js       all 61 exercises + tracks + dialect notes
 assets/js/app.js              UI: editor, highlighting, grid, progress
