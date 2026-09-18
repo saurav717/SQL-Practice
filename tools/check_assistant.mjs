@@ -107,7 +107,10 @@ async function boot(url) {
 {
   const { p, errs } = await boot(`${ORIGIN}/`);
   ok('the Claude panel starts closed', !(await p.locator('[data-tile="assistant"]').isVisible()));
+  const editorAlone = await p.locator('#editor').boundingBox();
   await p.click('#btn-assistant');
+  ok('it opens as a window over the workspace',
+     await p.locator('[data-tile="assistant"].tile-float').count() === 1);
   await p.waitForSelector('.chat-card', { timeout: 5000 });
   ok('opening it shows the key card', await p.locator('#chat-key-input').isVisible());
   // The card is taller than the panel, so where it opens matters: scrolled to
@@ -116,12 +119,23 @@ async function boot(url) {
   ok('the composer is disabled until there is a key', await p.locator('#chat-input').isDisabled());
   ok('no page errors on the key path', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
 
-  // Closing it gives the editor its width back.
-  const wide = await p.locator('#editor').boundingBox();
+  // The panel opens as a window over the workspace, so it takes no room from
+  // the editor at all -- that is the point of it. Docked, it is a tile again
+  // and the old bargain is back: it costs the editor width, and closing it
+  // gives the width back.
+  const floated = await p.locator('#editor').boundingBox();
+  ok('floating, it costs the editor nothing',
+     Math.abs(floated.width - editorAlone.width) < 2,
+     `${editorAlone.width.toFixed(0)} -> ${floated.width.toFixed(0)}`);
+
+  await p.click('#chat-float');
+  const docked = await p.locator('#editor').boundingBox();
+  ok('docked, it takes the room back', docked.width < floated.width - 100,
+     `${floated.width.toFixed(0)} -> ${docked.width.toFixed(0)}`);
   await p.click('#btn-assistant');
-  const wider = await p.locator('#editor').boundingBox();
-  ok('closing it returns the room to the editor', wider.width > wide.width,
-     `${wide.width.toFixed(0)} -> ${wider.width.toFixed(0)}`);
+  const closed = await p.locator('#editor').boundingBox();
+  ok('closing it returns the room to the editor', closed.width > docked.width,
+     `${docked.width.toFixed(0)} -> ${closed.width.toFixed(0)}`);
   await p.close();
 }
 
