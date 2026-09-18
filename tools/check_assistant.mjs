@@ -175,11 +175,23 @@ async function boot(url) {
   ok('adaptive thinking was requested', sent.thinking?.type === 'adaptive');
   ok('the browser header is set', lastRequest.headers['anthropic-dangerous-direct-browser-access'] === 'true');
   const first = sent.messages[0].content;
+  ok('the screen rode along', first.includes('<screen>'));
   ok('the schema rode along', first.includes('<schema') && first.includes('transactions'));
-  ok('the editor contents rode along', first.includes('<editor>'));
-  ok('the last result rode along', first.includes('<last_result>'));
+  ok('the editor contents rode along', first.includes('<editor '));
+  ok('the caret came with it', /<editor [^>]*caret="line \d+, column \d+"/.test(first));
+  ok('the results tab rode along', first.includes('<results_tab'));
+  // Not just the summary line -- the grid itself, which is what the learner
+  // is looking at and the whole reason they no longer have to paste it.
+  ok('the rows rode along', first.includes('txn_id') && first.includes('running'));
+  ok('the feedback tab rode along', first.includes('<feedback_tab'));
+  ok('the portability tab rode along', first.includes('<portability_tab'));
+  ok('the recent runs rode along', first.includes('<recent_runs>'));
   ok('the exercise rode along', first.includes('<exercise'));
   ok('the question is last', first.trimEnd().endsWith('Why is my running total wrong?'));
+  // The hints and the solution are the learner's to reveal. Nothing has been
+  // revealed in this run, so neither may appear.
+  ok('an unrevealed hint stays out', !first.includes('<hints_already_revealed'));
+  ok('an unrevealed solution stays out', !first.includes('<reference_solution'));
 
   // The Insert button is the reason the answers are worth anything. The
   // editor already holds a draft, so it must ask before overwriting it --
@@ -193,6 +205,31 @@ async function boot(url) {
   ok('Insert puts the query in the editor',
      (await p.inputValue('#editor')).includes('ROWS UNBOUNDED PRECEDING'));
   ok('Insert asks before it overwrites a draft', asked);
+
+  // The screen is re-read for every message, not captured once at the top of
+  // the conversation. Run something different, ask a second question, and the
+  // block that goes with it must describe the query on screen NOW -- this is
+  // the whole point of the panel, and the easiest thing to regress.
+  await p.fill('#editor', 'SELECT 42 AS the_answer');
+  await p.click('#btn-run');
+  await p.waitForSelector('table.grid', { timeout: 30000 });
+  await p.fill('#chat-input', 'And now?');
+  await p.press('#chat-input', 'Enter');
+  await p.waitForFunction(() => (document.querySelectorAll('.chat-claude').length >= 2),
+                          null, { timeout: 30000 });
+  const msgs = lastRequest.body.messages;
+  const latest = msgs[msgs.length - 1].content;
+  ok('the second question carries a screen of its own', latest.includes('<screen>'));
+  // The editor section specifically, not the whole block: <recent_runs> holds
+  // the earlier query on purpose, so "the old text appears somewhere" proves
+  // nothing either way.
+  const editorBlock = latest.match(/<editor [^>]*>([\s\S]*?)<\/editor>/)?.[1] ?? '';
+  ok('and it is the current screen',
+     editorBlock.includes('the_answer') && !editorBlock.includes('sum(amount)'),
+     editorBlock.trim().slice(0, 60));
+  ok('the stale screen is gone from the first turn', !msgs[0].content.includes('<screen>'));
+  ok('the first question itself is still there',
+     msgs[0].content.includes('Why is my running total wrong?'));
 
   // Turning a context switch off must actually drop it from the request.
   await p.click('#chat-gear');

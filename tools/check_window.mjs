@@ -158,15 +158,75 @@ ok('Escape from inside closes it', await page.isHidden('[data-tile="assistant"]'
 await page.click('#btn-assistant');
 await page.waitForTimeout(150);
 
+// --- driven from the keyboard ---------------------------------------------
+//
+// A window you can only move with the pointer is a window you stop moving.
+// cmd/ctrl + an arrow throws it at that edge; the same arrow again cycles the
+// fraction it takes there; cmd/ctrl + shift + an arrow slides it a little.
+const work = { w: VIEW.width - 2 * 10, h: VIEW.height - 62 - 10 };
+await page.keyboard.press('Control+ArrowLeft');
+await page.waitForTimeout(120);
+const half = await box();
+ok('cmd+left throws it at the left edge',
+   half.x <= 12 && Math.abs(half.w - work.w / 2) < 14 && Math.abs(half.h - work.h) < 14,
+   JSON.stringify(half));
+
+await page.keyboard.press('Control+ArrowLeft');
+await page.waitForTimeout(120);
+const third = await box();
+ok('pressing it again cycles to a third',
+   third.x <= 12 && Math.abs(third.w - work.w / 3) < 14, JSON.stringify(third));
+
+await page.keyboard.press('Control+ArrowRight');
+await page.waitForTimeout(120);
+const right = await box();
+ok('a different arrow starts over at a half, on that edge',
+   Math.abs((right.x + right.w) - (VIEW.width - 10)) < 12 &&
+   Math.abs(right.w - work.w / 2) < 14, JSON.stringify(right));
+
+await page.keyboard.press('Control+ArrowDown');
+await page.waitForTimeout(120);
+const low = await box();
+ok('cmd+down takes the bottom half',
+   Math.abs((low.y + low.h) - (VIEW.height - 10)) < 12 &&
+   Math.abs(low.h - work.h / 2) < 14, JSON.stringify(low));
+
+await page.keyboard.press('Control+Shift+ArrowUp');
+await page.waitForTimeout(120);
+const nudged = await box();
+ok('cmd+shift+up nudges it without resizing it',
+   nudged.y < low.y && nudged.h === low.h && nudged.w === low.w,
+   `${low.y} -> ${nudged.y}`);
+
+// Holding it against an edge must stop at the edge, not walk off the page.
+for (let i = 0; i < 40; i++) await page.keyboard.press('Control+Shift+ArrowLeft');
+await page.waitForTimeout(150);
+const pinned = await box();
+ok('nudging into the edge stops there', pinned.x >= 8, JSON.stringify(pinned));
+
+// The editor keeps its own arrows: cmd+left is caret movement there, and
+// nothing about this window is worth breaking that for.
+await page.locator('#editor').focus();
+await page.evaluate(() => { document.querySelector('#editor').value = 'SELECT 1'; });
+const beforeEditor = await box();
+await page.keyboard.press('Control+ArrowRight');
+await page.waitForTimeout(120);
+ok('the editor keeps cmd+arrow for its caret',
+   JSON.stringify(await box()) === JSON.stringify(beforeEditor));
+await page.locator('#chat-input').focus();
+await page.keyboard.press('Control+ArrowUp');
+await page.waitForTimeout(120);
+const kept2 = await box();
+
 // --- and it is still there after a reload ---------------------------------
 await page.reload({ waitUntil: 'domcontentloaded' });
 await page.waitForSelector('#topbar:not([hidden])', { timeout: 120000 });
 await page.waitForTimeout(400);
 const after = await box();
 ok('remembers where it was and how big',
-   Math.abs(after.x - kept.x) < 3 && Math.abs(after.y - kept.y) < 3 &&
-   Math.abs(after.w - kept.w) < 3 && Math.abs(after.h - kept.h) < 3,
-   `${JSON.stringify(kept)} -> ${JSON.stringify(after)}`);
+   Math.abs(after.x - kept2.x) < 3 && Math.abs(after.y - kept2.y) < 3 &&
+   Math.abs(after.w - kept2.w) < 3 && Math.abs(after.h - kept2.h) < 3,
+   `${JSON.stringify(kept2)} -> ${JSON.stringify(after)}`);
 ok('remembers the frame', await page.getAttribute('.tile-float', 'data-win-style') === 'clear');
 ok('remembers the tint', Number(await page.evaluate(() =>
    document.querySelector('.tile-float').style.getPropertyValue('--win-tint'))) === 0.4);

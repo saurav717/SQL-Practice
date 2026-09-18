@@ -15,6 +15,7 @@
     "check:proxy": "node tools/check_proxy.mjs",
     "check:assistant": "node tools/check_assistant.mjs",
     "check:window": "node tools/check_window.mjs",
+    "check:panes": "node tools/check_panes.mjs",
     "build:sdk": "node tools/build_anthropic.mjs"
   },
   "devDependencies": {
