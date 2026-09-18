@@ -237,9 +237,11 @@ no card at all.
 
 ### Rearranging the panels
 
-The window is four tiles — **Exercises**, **Exercise**, **Editor**,
-**Results** — and you decide where each one goes. Every tile carries a thin bar
-with a grip on the left:
+The window is five tiles — **Exercises**, **Exercise**, **Editor**,
+**Results** and **Ask Claude** — and you decide where each one goes. The Claude
+panel starts closed and everything else starts where it always has; the other
+four never notice it until you open it. Every tile carries a thin bar with a
+grip on the left:
 
 * **Drag the bar** and drop the tile against the **left, right, top or bottom**
   edge of any other tile: it splits that tile and takes half. Drop it in the
@@ -268,8 +270,54 @@ extremes). Sizes are in pixels and are remembered per browser, so the editor doe
 not re-scale every time the window changes height. Each tile has a floor that a
 drag cannot push past, so nothing can be collapsed to nothing — and in every
 split, the tile holding the results grid is the elastic one, so a window resize
-lands there instead of re-shuffling everything you set. Below 1000px wide the
+lands there instead of re-shuffling everything you set. (The Claude panel is
+never the elastic one: it sits at the end of the row it shares with the editor,
+and a wider window should widen the editor, not the side panel.) Below 1000px wide the
 tiles stack and size themselves, and the handles go away.
+
+### Ask Claude
+
+**Ask Claude** in the top bar opens a chat panel docked to the right of the
+editor — drag it anywhere the other tiles go, or close it again and the editor
+takes the width back. Ask why a window frame is off, what `QUALIFY` does, or
+what is wrong with the query you have open.
+
+Each message can carry context, and you choose what: the **warehouse schema**,
+the **current exercise**, the **editor contents**, and the **last result or
+error**. The switches are under **⚙**, all on by default, and turning one off
+means that part is never assembled into the request — not sent and ignored.
+Every ```` ```sql ```` block in an answer grows an **Insert** button that drops
+it into the editor, asking first if you have a draft there.
+
+Model is yours to pick — Opus 5 (the default), Sonnet 5, or Haiku 4.5 — and the
+conversation lives for the page load; **New chat** clears it.
+
+#### Signing in
+
+Anthropic publishes no "sign in with Claude" for third-party websites. A
+Claude.ai or Claude Code subscription cannot be spent from a page like this
+one, and there is no OAuth flow to offer, so there are two honest options and
+the panel supports both:
+
+1. **Your own API key** (the default). Create one at
+   [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
+   and paste it into the panel. It is stored in your browser's `localStorage`
+   under its own key — clearing your practice progress does not take it with it
+   — and goes straight to `api.anthropic.com`; this site has no server and
+   never sees it. Usage bills your own account. **⚙ → Forget my key** removes
+   it.
+2. **A proxy that holds one key for everyone.** `proxy/` is a Cloudflare Worker
+   that keeps the key server-side; deploy it, point `CLAUDE_ENDPOINT` at it when
+   deploying the site, and visitors need no key at all — but you pay for every
+   question anyone asks. `proxy/README.md` covers the guards and the spend
+   limit you should set first.
+
+With neither configured, the panel shows the key card and calls nobody. A plain
+checkout talks to no one, which is the same promise the rest of the site makes.
+
+The Anthropic SDK is vendored at `engine/anthropic/` (185 KB, ~48 KB over the
+wire) and imported only when the panel is first used, so a visit that never
+opens it never downloads it.
 
 ### Activity log
 
@@ -368,6 +416,8 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 | `tools/check_dataset.mjs` | 24 dataset invariants (gaps, ties, streaks, overlaps, orphans) |
 | `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hover cards, hints, solution box, mobile layout |
 | `tools/check_collector.mjs` | the visit collector logs the edge address (never the payload), enforces its origin allowlist, and prunes on schedule |
+| `tools/check_proxy.mjs` | the Claude proxy's guards: origin allowlist, model allowlist, `max_tokens` ceiling, rate limit, and that it rebuilds the request body rather than forwarding it |
+| `tools/check_assistant.mjs` | the Claude panel end to end against a fake Anthropic: it streams, renders, inserts SQL into the editor, and sends only the context that is switched on |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,
 `assets/data/schema.sql`, or `tools/gen_seed.mjs`.
@@ -409,15 +459,20 @@ assets/js/activity.js         activity log: device ID, opt-in location, export
 assets/js/layout.js           the tile tree: drag-to-rearrange, splitters, tab order
 assets/js/schema-doc.js       table purposes, schema.sql note parser, join keys
 assets/js/tabletip.js         the table hover card (chips, prompt triggers, positioning)
+assets/js/assistant.js        the Ask Claude panel: auth, context, streaming, rendering
 assets/data/schema.sql        20 annotated tables
 assets/data/seed.sql          generated, deterministic (2.2 MB)
 assets/data/compat.sql        Snowflake/Redshift function shims
 assets/data/compat-tz.sql     time-zone shims (loaded only when ICU is available)
 tools/                        generator + verification suites
 engine/duckdb/                DuckDB-Wasm 1.33.1 (MIT), ~36 MB, ~8 MB over the wire
+engine/anthropic/             @anthropic-ai/sdk (MIT), 185 KB, loaded on first use
+proxy/                        optional Cloudflare Worker holding one API key
+collector/                    optional Cloudflare Worker logging visits
 ```
 
-`engine/duckdb/NOTICE.md` records licensing.
+`engine/duckdb/NOTICE.md` and `engine/anthropic/NOTICE.md` record licensing.
+The Anthropic bundle is rebuilt with `npm run build:sdk`.
 
 ## Engine source: vendored vs CDN
 

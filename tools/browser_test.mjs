@@ -557,6 +557,18 @@ await page.setViewportSize({ width: 390, height: 780 });
 await page.waitForTimeout(300);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
 console.log('mobile 390 :', overflow ? 'HORIZONTAL OVERFLOW' : 'no horizontal overflow');
+// Sideways scroll on a phone is a bug, not a note: a topbar one button too
+// wide is exactly how it gets introduced, and it was only logged before.
+if (overflow) errors.push('the page scrolls sideways at 390px');
+
+// The Claude panel is the one tile that is closed to begin with, so it has to
+// be opened to be checked at this width.
+await page.click('#btn-assistant');
+await page.waitForTimeout(200);
+const chatOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+console.log('chat 390   :', chatOverflow ? 'HORIZONTAL OVERFLOW' : 'no horizontal overflow');
+if (chatOverflow) errors.push('the Claude panel scrolls sideways at 390px');
+await page.click('#btn-assistant');
 
 await page.screenshot({ path: '/tmp/shot-mobile.png', fullPage: false });
 await page.setViewportSize({ width: 1440, height: 900 });
