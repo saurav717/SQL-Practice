@@ -29,5 +29,7 @@ echo "== the Claude window drags, resizes, docks and is where you left it =="
 node tools/check_window.mjs
 echo "== every pane resizes, expands to fill the workspace and comes back =="
 node tools/check_panes.mjs
+echo "== the editor wraps long lines, and the gutter and highlight wrap with it =="
+node tools/check_wrap.mjs
 echo
 echo "All checks passed."

@@ -198,6 +198,16 @@ by assigning to `value`, which is what keeps `⌘Z` able to undo it.
 all already commented. The marker goes at the block's shallowest indent, so the
 shape of the query survives the round trip.
 
+Two toggles sit at the right-hand end of the editor toolbar. **#** shows the
+line numbers; **↩** wraps long lines instead of letting them run off the right
+edge. Both are remembered per browser, so an editor you set up once stays that
+way.
+
+Wrapping folds the text where the pane ends, and the numbers keep counting
+lines rather than rows: a query that takes three rows on screen is still line
+2, which is what `⌘↵`, the engine's error messages and the linter all mean by a
+line number. A folded line simply leaves its extra rows blank in the gutter.
+
 Grading compares your **result set** against the reference, not your SQL text —
 any correct approach passes. Column *values* must match; column *names* are
 advisory (you get a note, not a failure). Exercises that specify an ordering are
@@ -508,6 +518,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 | `tools/check_proxy.mjs` | the Claude proxy's guards: origin allowlist, model allowlist, `max_tokens` ceiling, rate limit, and that it rebuilds the request body rather than forwarding it |
 | `tools/check_assistant.mjs` | the Claude panel end to end against a fake Anthropic: it streams, renders, inserts SQL into the editor, sends only the context that is switched on, keeps past chats across a reload, and lights its button without the accent fill |
 | `tools/check_window.mjs` | the Claude window as a window: it costs the layout nothing, drags, resizes from every edge without the opposite edge wandering, cannot be dragged off the page, docks, and is where you left it after a reload |
+| `tools/check_wrap.mjs` | word wrap in the editor: a long line folds, the textarea and the highlight fold in the same places, the gutter keeps numbering lines and each number stays level with the line it belongs to, and the setting survives a reload |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,
 `assets/data/schema.sql`, or `tools/gen_seed.mjs`.
