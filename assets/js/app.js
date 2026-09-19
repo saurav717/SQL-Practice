@@ -1202,7 +1202,14 @@ function setAssistantOpen(open) {
   state.assistantOpen = !!open;
   saveState();
   layout.setHidden('assistant', !open);
-  $('#btn-assistant').classList.toggle('btn-primary', !!open);
+  // aria-pressed, not a fill: the button carries a standing glass highlight of
+  // its own (see app.css) and lighting it up in accent when the panel is open
+  // made the busiest control in the bar the loudest thing on the page.
+  const btn = $('#btn-assistant');
+  btn.setAttribute('aria-pressed', String(!!open));
+  btn.title = open
+    ? 'Ask Claude is open — click to close it (⌘\\)'
+    : 'Ask Claude about the exercise, the schema, or your query (⌘\\)';
   if (open) {
     assistant.refresh();
     $('#chat-input')?.focus();
