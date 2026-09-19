@@ -43,7 +43,7 @@
       <span class="engine-label">Target</span>
       <select id="engine-select"></select>
     </label>
-    <button id="btn-assistant" class="btn btn-ghost" aria-label="Ask Claude"
+    <button id="btn-assistant" class="btn" aria-label="Ask Claude" aria-pressed="false"
             title="Ask Claude about the exercise, the schema, or your query (⌘\)"><span
             class="btn-wide">Ask Claude</span><span class="btn-narrow" aria-hidden="true">✦</span></button>
     <button id="btn-sandbox" class="btn btn-ghost" aria-pressed="false"
@@ -234,10 +234,13 @@
     <div class="chat-toolbar">
       <select id="chat-model" title="Which Claude model answers"></select>
       <span class="toolbar-gap"></span>
-      <button type="button" id="chat-reset" class="btn btn-ghost btn-mini" title="Start a new conversation">New chat</button>
+      <button type="button" id="chat-history-btn" class="btn btn-ghost btn-mini" aria-pressed="false"
+              title="Earlier conversations, kept in this browser">History <span id="chat-history-count" class="pill" hidden>0</span></button>
+      <button type="button" id="chat-reset" class="btn btn-ghost btn-mini" title="File this conversation in History and start a new one">New chat</button>
       <button type="button" id="chat-gear" class="btn btn-icon" title="What gets sent, and your account">⚙</button>
     </div>
 
+    <div id="chat-history" class="chat-history" hidden></div>
     <div id="chat-settings" class="chat-settings" hidden></div>
 
     <div id="chat-body" class="chat-body"></div>

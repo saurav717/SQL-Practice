@@ -309,7 +309,12 @@ tiles stack and size themselves, and the handles go away.
 ### Ask Claude
 
 **Ask Claude** in the top bar — or `⌘\` / `Ctrl+\` from anywhere — opens a
-chat **window** over the workspace. Not a panel: it floats, so the editor and
+chat **window** over the workspace. The button carries a standing highlight so
+the panel is findable at all: a frosted pane with a faint accent rim and a slow
+sweep of light across it, deepening and growing a small dot while the window is
+open. Deliberately quieter than the Sandbox button beside it — that one
+announces a *mode* you are in and is allowed to shout; this one only has to be
+noticed once. Not a panel: it floats, so the editor and
 the results keep their full width, and it is translucent, so the query you are
 asking about stays readable underneath it. `Esc` puts it away, and `⌘J` still
 toggles it too: that was the first binding and some fingers know it. Ask why a window
@@ -355,8 +360,25 @@ means that part is never assembled into the request — not sent and ignored.
 Every ```` ```sql ```` block in an answer grows an **Insert** button that drops
 it into the editor, asking first if you have a draft there.
 
-Model is yours to pick — Opus 5 (the default), Sonnet 5, or Haiku 4.5 — and the
-conversation lives for the page load; **New chat** clears it.
+Model is yours to pick — Opus 5 (the default), Sonnet 5, or Haiku 4.5.
+
+#### History
+
+Conversations are kept. **History** in the panel's toolbar lists every chat
+this browser has, newest first, with the question that started it and when it
+was last answered; click one to pick it up where you left off, and carry on in
+it. **New chat** files the one you are in and starts an empty one, so nothing
+is thrown away by moving on. The ✕ on a row deletes that chat and **Delete
+all** empties the list.
+
+A chat is filed the moment Claude answers — there is nothing to save — and the
+last 40 are kept. Like everything else here this is `localStorage`: this
+browser, this machine, no account and no upload, and gone if you clear the
+site's data. What is stored is the conversation itself. The `<screen>` block
+that rode along with each question is not: it is rebuilt from the live page
+every time you send, and a stale copy of your editor is the last thing worth
+keeping on disk. Neither are the reasoning summaries, which are the longest
+part of a thread and the least useful to reread.
 
 #### Signing in
 
@@ -484,7 +506,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 | `tools/browser_test.mjs` | boot, run, grade right/wrong answers, linter, schema, hover cards, hints, solution box, mobile layout |
 | `tools/check_collector.mjs` | the visit collector logs the edge address (never the payload), enforces its origin allowlist, and prunes on schedule |
 | `tools/check_proxy.mjs` | the Claude proxy's guards: origin allowlist, model allowlist, `max_tokens` ceiling, rate limit, and that it rebuilds the request body rather than forwarding it |
-| `tools/check_assistant.mjs` | the Claude panel end to end against a fake Anthropic: it streams, renders, inserts SQL into the editor, and sends only the context that is switched on |
+| `tools/check_assistant.mjs` | the Claude panel end to end against a fake Anthropic: it streams, renders, inserts SQL into the editor, sends only the context that is switched on, keeps past chats across a reload, and lights its button without the accent fill |
 | `tools/check_window.mjs` | the Claude window as a window: it costs the layout nothing, drags, resizes from every edge without the opposite edge wandering, cannot be dragged off the page, docks, and is where you left it after a reload |
 
 Run `npm run check` after touching `assets/js/curriculum.js`,

@@ -248,6 +248,165 @@ async function boot(url) {
   await p.close();
 }
 
+// --- 3. history: the chats are still there tomorrow -----------------------
+//
+// Two conversations, then a reload. The reload is the whole point -- history
+// that only lasts as long as the tab is just the thread -- so it happens in
+// this page rather than a fresh one: browser.newPage() opens its own context,
+// and a new context has nobody's localStorage in it.
+{
+  const { p, errs } = await boot(`${ORIGIN}/wired.html`);
+  p.on('dialog', d => d.accept());
+  await p.click('#btn-assistant');
+
+  const answered = (n) => p.waitForFunction(
+    (want) => document.querySelectorAll('.chat-claude').length >= want
+              && !document.querySelector('.chat-wait'),
+    n, { timeout: 30000 });
+  const ask = async (q, n) => {
+    await p.fill('#chat-input', q);
+    await p.press('#chat-input', 'Enter');
+    await answered(n);
+  };
+
+  await ask('Why is my running total wrong?', 1);
+  await ask('And now?', 2);
+  await p.click('#chat-reset');
+  await ask('Second question', 1);
+
+  await p.goto(`${ORIGIN}/wired.html`, { waitUntil: 'domcontentloaded' });
+  await p.waitForSelector('#topbar:not([hidden])', { timeout: 120000 });
+  // The panel remembers it was open, so it is usually back on its own.
+  if (!(await p.locator('[data-tile="assistant"]').isVisible())) await p.click('#btn-assistant');
+
+  ok('the chats survived the reload',
+     Number(await p.locator('#chat-history-count').innerText()) === 2,
+     await p.locator('#chat-history-count').innerText());
+  ok('the count rides on the History button', await p.locator('#chat-history-count').isVisible());
+  ok('the drawer starts closed', !(await p.locator('#chat-history').isVisible()));
+
+  await p.click('#chat-history-btn');
+  ok('History opens a drawer', await p.locator('#chat-history').isVisible());
+  const titles = await p.locator('.chat-hist-title').allInnerTexts();
+  ok('both chats are listed', titles.length === 2, JSON.stringify(titles));
+  ok('newest first', titles[0] === 'Second question', titles[0]);
+  ok('a chat is named after the question that started it',
+     titles[1] === 'Why is my running total wrong?', titles[1]);
+  ok('the row says how much is in it',
+     (await p.locator('.chat-hist-meta').first().innerText()).startsWith('1 question'),
+     await p.locator('.chat-hist-meta').first().innerText());
+
+  // The drawers share one slot: opening ⚙ must put History away, not stack.
+  await p.click('#chat-gear');
+  ok('⚙ closes History rather than stacking on it',
+     await p.locator('#chat-settings').isVisible() && !(await p.locator('#chat-history').isVisible()));
+  await p.click('#chat-history-btn');
+
+  // Reopening an old chat is the reason the list exists. By title, not by
+  // position: filing a chat promotes it, so the row order moves under you.
+  const reopen = (title) => p.locator('.chat-hist-open', { hasText: title }).click();
+  await reopen('running total');
+  const thread = await p.locator('#chat-body').innerText();
+  ok('opening a chat restores the question', thread.includes('Why is my running total wrong?'));
+  ok('and the answer that went with it', thread.includes('Use a frame'));
+  ok('and the follow-up in the same thread', thread.includes('And now?'));
+  ok('the open chat is marked in the list',
+     await p.locator('.chat-hist-row.chat-hist-on .chat-hist-title').innerText()
+       === 'Why is my running total wrong?');
+  // Reopening must not fork a copy: two chats went in, two chats come out.
+  ok('reopening does not duplicate the chat',
+     (await p.locator('.chat-hist-row').count()) === 2);
+
+  // What is stored is the conversation, not the screen it was asked against:
+  // a stale copy of somebody's editor is the one thing not worth keeping.
+  const stored = await p.evaluate(() =>
+    localStorage.getItem('sqlpractice.assistant.history.v1'));
+  ok('the stored chats carry no captured screen', !stored.includes('<screen>'));
+  ok('and no API key rode along with them', !/sk-ant-/.test(stored));
+
+  // New chat files the thread rather than dropping it.
+  await p.click('#chat-reset');
+  ok('New chat empties the thread', await p.locator('.chat-empty').isVisible());
+  ok('and keeps both chats in the list', (await p.locator('.chat-hist-row').count()) === 2);
+
+  // Sending from a reopened thread appends to that chat, it does not fork one.
+  await reopen('running total');
+  await p.fill('#chat-input', 'One more thing');
+  await p.press('#chat-input', 'Enter');
+  await p.waitForFunction(() => document.querySelectorAll('.chat-claude').length >= 3
+                                && !document.querySelector('.chat-wait'),
+                          null, { timeout: 30000 });
+  ok('a reply to a reopened chat stays in that chat',
+     (await p.locator('.chat-hist-row').count()) === 2);
+  ok('and promotes it to the top',
+     (await p.locator('.chat-hist-title').first().innerText()) === 'Why is my running total wrong?');
+
+  // Deleting. The second row is the chat that is not open, so the thread on
+  // screen survives it -- which the assertion after the clear-all checks.
+  await p.locator('.chat-hist-del').nth(1).click();
+  ok('the ✕ deletes one chat', (await p.locator('.chat-hist-row').count()) === 1);
+  ok('the count follows it down',
+     (await p.locator('#chat-history-count').innerText()) === '1');
+  await p.click('#chat-history-clear');
+  ok('Delete all empties the list', (await p.locator('.chat-hist-row').count()) === 0);
+  ok('and hides the count', !(await p.locator('#chat-history-count').isVisible()));
+  ok('the empty drawer says what the list is for',
+     (await p.locator('#chat-history').innerText()).includes('No chats yet'));
+  ok('deleting the history does not clear the thread on screen',
+     (await p.locator('#chat-body').innerText()).includes('Why is my running total wrong?'));
+  ok('and it is gone from storage too',
+     await p.evaluate(() => !localStorage.getItem('sqlpractice.assistant.history.v1')));
+
+  ok('no page errors on the history path', errs.length === 0, JSON.stringify(errs.slice(0, 2)));
+  await p.close();
+}
+
+// --- 4. the Ask Claude button is lit, but quietly -------------------------
+//
+// The panel is the one thing on the page nobody finds by accident, so the
+// button carries a standing highlight. It must not be the Sandbox treatment,
+// though: Sandbox announces a mode and is allowed the accent fill, and two
+// accent-filled buttons side by side is what "not too distracting" rules out.
+{
+  const { p } = await boot(`${ORIGIN}/`);
+  const style = (sel, prop) => p.evaluate(
+    ([s, k]) => getComputedStyle(document.querySelector(s)).getPropertyValue(k), [sel, prop]);
+
+  ok('the button says whether the panel is open',
+     await p.getAttribute('#btn-assistant', 'aria-pressed') === 'false');
+  ok('it stands out from a plain toolbar button',
+     (await style('#btn-assistant', 'box-shadow')) !== 'none'
+       && (await style('#btn-sandbox', 'box-shadow')) === 'none');
+  ok('it is glass, not a colour fill',
+     (await style('#btn-assistant', 'background-image')).includes('rgba(255, 255, 255'),
+     await style('#btn-assistant', 'background-image'));
+
+  // The accent fill belongs to Sandbox. Whichever way this button is drawn,
+  // it must not be wearing that one -- pressed or not.
+  const accentFilled = async () => {
+    const img = await style('#btn-assistant', 'background-image');
+    const col = await style('#btn-assistant', 'background-color');
+    return /rgb\(99, 179, 255\)|rgb\(168, 214, 255\)/.test(`${img} ${col}`);
+  };
+  ok('closed, it does not wear the accent fill', !(await accentFilled()));
+
+  await p.click('#btn-assistant');
+  ok('opening it presses the button',
+     await p.getAttribute('#btn-assistant', 'aria-pressed') === 'true');
+  ok('open, it still does not wear the accent fill', !(await accentFilled()));
+  ok('open, it is not the primary button either',
+     !(await p.evaluate(() => document.querySelector('#btn-assistant').classList.contains('btn-primary'))));
+  // Not by colour alone: pressed, the button grows the same quiet dot the
+  // Sandbox button uses -- minus the pulse.
+  ok('open, it shows a state dot',
+     await p.evaluate(() => getComputedStyle(document.querySelector('#btn-assistant'), '::before').content !== 'none'));
+
+  await p.click('#btn-assistant');
+  ok('closing it releases the button',
+     await p.getAttribute('#btn-assistant', 'aria-pressed') === 'false');
+  await p.close();
+}
+
 await b.close();
 srv.close();
 console.log();
