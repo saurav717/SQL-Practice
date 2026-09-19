@@ -204,13 +204,24 @@ advisory (you get a note, not a failure). Exercises that specify an ordering are
 compared in order; the rest are compared as sets. Floating-point values are
 rounded to 6 decimals first, so `0.1 + 0.2` noise never fails a correct answer.
 
+Column **order** is advisory too. Rows are compared position by position, so a
+right answer whose `SELECT` list is in a different order used to come back as
+*Wrong values*. When your columns turn out to be a reordering of the expected
+ones — same data, different slots — it grades as **Correct**, with an amber note
+naming both orders and the reordering that matches the brief. The exercise
+counts as solved; the note is there because column order is part of the output
+contract everywhere else.
+
 Failure messages are diagnostic rather than binary — wrong row count tells you
 whether a join fanned out or an inner join dropped rows; wrong order tells you
 the rows were right.
 
 **Sandbox** (top bar) gives you a free-form editor where `INSERT`/`UPDATE`/`DDL`
-are allowed. **Reset data** reloads the dataset from scratch. **⊞** puts the
-panels and tabs back to their starting arrangement.
+are allowed. It is a mode, not an action, so the button stays lit — filled,
+ringed, and carrying a live dot — for as long as you are in it, and goes dark
+the moment you leave, including by picking an exercise from the list. **Reset
+data** reloads the dataset from scratch. **⊞** puts the panels and tabs back to
+their starting arrangement.
 
 ### Which tables, and what is in them
 
@@ -449,6 +460,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 |---|---|
 | `tools/check_exercises.mjs` | all 61 solutions parse, run, and return rows |
 | `tools/check_order.mjs` | the grader's `CAST(... AS VARCHAR)` wrapper preserves `ORDER BY` (56/56) |
+| `tools/check_grading.mjs` | every solution with its columns reversed grades as a `column-order` pass (not a failure), a genuinely wrong answer still fails, and the Sandbox button tracks the mode in both directions |
 | `tools/check_schema_notes.mjs` | the hover cards' tables, columns and join keys all exist in the database |
 | `tools/check_claims.mjs` | the traps prompts describe actually occur in the data |
 | `tools/check_dataset.mjs` | 24 dataset invariants (gaps, ties, streaks, overlaps, orphans) |
