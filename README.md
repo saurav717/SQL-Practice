@@ -204,17 +204,34 @@ advisory (you get a note, not a failure). Exercises that specify an ordering are
 compared in order; the rest are compared as sets. Floating-point values are
 rounded to 6 decimals first, so `0.1 + 0.2` noise never fails a correct answer.
 
-Column **order** is advisory too. Rows are compared position by position, so a
-right answer whose `SELECT` list is in a different order used to come back as
-*Wrong values*. When your columns turn out to be a reordering of the expected
-ones — same data, different slots — it grades as **Correct**, with an amber note
-naming both orders and the reordering that matches the brief. The exercise
-counts as solved; the note is there because column order is part of the output
-contract everywhere else.
+When your column **names** are the brief's names — the same set, each once, in
+any order — the pairing between your columns and the expected ones is
+unambiguous, so the answer is checked **name by name**: the values under
+`revenue` are compared with the values the brief wants under `revenue`,
+whichever position either sits in. Column *order* then becomes a remark rather
+than the verdict. A reordered `SELECT` list grades as **Correct** with an amber
+note naming both orders and the reordering that matches the brief; the exercise
+counts as solved, and the note is there because column order is part of the
+output contract everywhere else.
+
+Names stay advisory. Rename a column and there is nothing to pair on, so the
+answer falls back to the positional comparison and still passes, with a note.
+
+Pairing by name is also what lets a failure point at one column instead of a
+wall of row text:
+
+| What went wrong | What it says |
+|---|---|
+| One named column's values are wrong | names that column, gives one concrete difference, and lists the columns that are right |
+| The right values are under the wrong names | names which of your columns holds what — an alias on the wrong expression |
+| Every column is right but the rows pair differently | a join or grouping problem, not a column problem |
+| A column is missing or surplus | names it, rather than only counting columns |
 
 Failure messages are diagnostic rather than binary — wrong row count tells you
 whether a join fanned out or an inner join dropped rows; wrong order tells you
-the rows were right.
+the rows were right. The ordering diagnosis wins over the per-column one, because
+a shifted row order makes every column look wrong and the one thing to fix is the
+`ORDER BY`.
 
 **Sandbox** (top bar) gives you a free-form editor where `INSERT`/`UPDATE`/`DDL`
 are allowed. It is a mode, not an action, so the button stays lit — filled,
@@ -460,7 +477,7 @@ npm run check:browser  # end-to-end: boots the real page in Chromium
 |---|---|
 | `tools/check_exercises.mjs` | all 61 solutions parse, run, and return rows |
 | `tools/check_order.mjs` | the grader's `CAST(... AS VARCHAR)` wrapper preserves `ORDER BY` (56/56) |
-| `tools/check_grading.mjs` | every solution with its columns reversed grades as a `column-order` pass (not a failure), a genuinely wrong answer still fails, and the Sandbox button tracks the mode in both directions |
+| `tools/check_grading.mjs` | every solution with its columns reversed grades as a `column-order` pass (not a failure); checking by name catches labels on the wrong columns, names the one bad column, names a missing or surplus column, keeps renames advisory, and keeps a wrong `ORDER BY` reading as an ordering problem; and the Sandbox button tracks the mode in both directions |
 | `tools/check_schema_notes.mjs` | the hover cards' tables, columns and join keys all exist in the database |
 | `tools/check_claims.mjs` | the traps prompts describe actually occur in the data |
 | `tools/check_dataset.mjs` | 24 dataset invariants (gaps, ties, streaks, overlaps, orphans) |

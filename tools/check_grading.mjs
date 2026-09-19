@@ -131,6 +131,110 @@ const wrong = await page.evaluate(async () => {
 ok('a wrong answer is still wrong', wrong.pass === false, JSON.stringify(wrong));
 
 // ---------------------------------------------------------------------------
+// 1b. Checking by column NAME.
+//
+// When your column names are the brief's names, the pairing between your
+// columns and the expected ones is unambiguous, so values are checked under
+// each name and position becomes a remark. These are the cases that pairing
+// gets right and a positional comparison does not -- most importantly the
+// third one, which a positional grader PASSES.
+// ---------------------------------------------------------------------------
+const named = await page.evaluate(async () => {
+  const engine = await import('/assets/js/engine.js');
+  const { EXERCISES } = await import('/assets/js/curriculum.js');
+  const strip = (s) => s.trim().replace(/;+\s*$/, '');
+  const q = (c) => `"${c.replace(/"/g, '""')}"`;
+
+  // A multi-column exercise with a fixed row order, which is nearly all of them.
+  const ex = EXERCISES.find((e) => e.ordered);
+  const sol = strip(ex.solution);
+  const cols = (await engine.run(sol, { limit: 1 })).columns;
+  const [c1, c2] = cols;
+  const rest = cols.slice(2).map(q);
+  const all = cols.map(q).join(', ');
+
+  const cases = {
+    // Right data, labels on the wrong columns. Position-only grading passed
+    // this: the values line up once you ignore what they are called.
+    labels: [ex, `SELECT ${q(c2)} AS ${q(c1)}, ${q(c1)} AS ${q(c2)}`
+                 + `${rest.length ? ', ' + rest.join(', ') : ''} FROM (${sol}) t`],
+    // Right names, right order, one column's values wrong.
+    values: [ex, `SELECT ${q(c1)}, CAST(NULL AS VARCHAR) AS ${q(c2)}`
+                 + `${rest.length ? ', ' + rest.join(', ') : ''} FROM (${sol}) t`],
+    // Names are advisory: rename everything and a correct answer still passes.
+    renamed: [ex, `SELECT ${cols.map((c, i) => `${q(c)} AS c${i}`).join(', ')} FROM (${sol}) t`],
+    // Reordered AND renamed -- two remarks about one answer.
+    both: [ex, `SELECT ${[...cols].reverse().map((c, i) => `${q(c)} AS c${i}`).join(', ')} FROM (${sol}) t`],
+    // Shape problems name the column rather than only counting.
+    missing: [ex, `SELECT ${cols.slice(0, -1).map(q).join(', ')} FROM (${sol}) t`],
+    extra: [ex, `SELECT ${all}, 1 AS surplus FROM (${sol}) t`],
+    // The regression guard: a shifted row order makes EVERY column look wrong,
+    // so the ORDER BY diagnosis has to win over the per-column one.
+    order: [ex, `SELECT ${all} FROM (${sol}) t ORDER BY ${q(c1)} DESC, ${q(c2)} DESC`],
+    // Synthetic: every column right on its own, values paired into other rows.
+    // Unreachable through the curriculum -- all five unordered exercises return
+    // a single row -- so it is built here rather than borrowed.
+    pairing: [{ solution: `SELECT * FROM (VALUES ('a',1),('b',2),('c',3)) t(k,v)`, ordered: false },
+              `SELECT * FROM (VALUES ('a',2),('b',3),('c',1)) t(k,v)`],
+    // Duplicate names cannot be paired, so this falls back to position.
+    dupes: [{ solution: `SELECT 1 AS n, 1 AS n`, ordered: false }, `SELECT 1 AS n, 1 AS n`],
+  };
+
+  const out = { expected: cols, first: c1, second: c2, exercise: ex.id };
+  for (const [k, [exercise, sql]] of Object.entries(cases)) {
+    const v = await engine.grade(sql, exercise);
+    out[k] = { pass: v.pass, reason: v.reason ?? null, detail: v.detail,
+               badColumns: v.badColumns ?? null };
+  }
+  return out;
+});
+
+const has = (k, ...bits) => bits.every((b) => named[k].detail.includes(b));
+
+ok('labels on the wrong columns FAIL (a positional grader passes this)',
+   named.labels.pass === false && named.labels.reason === 'column-labels',
+   `pass=${named.labels.pass} reason=${named.labels.reason}`);
+ok('...and it says which name holds which values',
+   has('labels', named.first) && has('labels', named.second)
+   && has('labels', 'under the wrong names'));
+
+ok('a wrong column is named, not dumped as a row',
+   named.values.reason === 'column-values'
+   && (named.values.badColumns ?? []).join() === named.second,
+   `reason=${named.values.reason} bad=${named.values.badColumns}`);
+ok('...and the columns that are right are listed as right',
+   has('values', 'correct: ' + named.first));
+
+ok('renamed columns still PASS -- names stay advisory',
+   named.renamed.pass === true && !named.renamed.reason,
+   `pass=${named.renamed.pass} reason=${named.renamed.reason}`);
+ok('...with the name advisory attached',
+   has('renamed', 'column names differ'));
+
+ok('reordered AND renamed passes with both remarks',
+   named.both.pass === true && named.both.reason === 'column-order'
+   && has('both', 'different order') && has('both', 'column names differ'),
+   `pass=${named.both.pass} reason=${named.both.reason}`);
+
+ok('a missing column is named', named.missing.reason === 'shape'
+   && has('missing', 'missing: '), named.missing.detail.replace(/\s+/g, ' ').slice(0, 90));
+ok('an extra column is named', named.extra.reason === 'shape'
+   && has('extra', 'not asked for: surplus'),
+   named.extra.detail.replace(/\s+/g, ' ').slice(0, 90));
+
+ok('a wrong ORDER BY still reads as an ordering problem, not N wrong columns',
+   named.order.reason === 'order' && has('order', 'add or fix the ORDER BY'),
+   `reason=${named.order.reason}`);
+
+ok('right columns paired into the wrong rows reads as a join/grouping problem',
+   named.pairing.reason === 'row-pairing' && has('pairing', 'join or grouping'),
+   `reason=${named.pairing.reason}`);
+
+ok('duplicate column names fall back to position and still pass',
+   named.dupes.pass === true && !named.dupes.reason,
+   `pass=${named.dupes.pass} reason=${named.dupes.reason}`);
+
+// ---------------------------------------------------------------------------
 // 2. The column-order note reaches the feedback pane as an amber card.
 // ---------------------------------------------------------------------------
 await page.evaluate(async () => {

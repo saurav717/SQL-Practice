@@ -756,6 +756,10 @@ async function doCheck() {
       error: 'Query error', shape: 'Wrong number of columns', rowcount: 'Wrong number of rows',
       order: 'Wrong order', values: 'Wrong values', empty: 'Nothing to check',
       'not-a-query': 'Not a query',
+      // Named-column diagnoses: the heading already says where to look.
+      'column-values': 'Wrong values in a named column',
+      'column-labels': 'Right values, wrong column names',
+      'row-pairing': 'Right columns, wrong rows',
     }[verdict.reason] || 'Not correct yet';
     $('#tab-feedback').innerHTML =
       `<div class="verdict verdict-bad"><h3>${esc(title)}</h3><pre>${esc(verdict.detail)}</pre></div>` +
